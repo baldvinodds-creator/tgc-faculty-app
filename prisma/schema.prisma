@@ -1,17 +1,13 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
+// ─── Shopify Session (required by @shopify/shopify-app-session-storage-prisma) ───
 
 model Session {
   id                  String    @id
@@ -31,4 +27,376 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// ─── Faculty ───
+
+model Faculty {
+  id                  String   @id @default(uuid())
+  email               String   @unique
+  role                String   @default("teacher") // teacher | admin
+  status              String // applicant | pending_review | approved | changes_requested | active | paused | suspended | archived | rejected
+  fullName            String?  @map("full_name")
+  publicName          String?  @map("public_name")
+  phone               String?
+  country             String?
+  city                String?
+  timezone            String?
+  teachingLanguages   String[] @map("teaching_languages")
+  shortBio            String?  @map("short_bio")
+  longBio             String?  @map("long_bio")
+  credentials         String?
+  institutions        String?
+  awards              String?
+  specialties         String[]
+  primaryInstrument   String?  @map("primary_instrument")
+  division            String? // Voice, Piano, Strings, Winds, Brass, Percussion, Composition, Theory, Conducting, Other
+  yearsExperience     Int?     @map("years_experience")
+  headshotUrl         String?  @map("headshot_url")
+  websiteUrl          String?  @map("website_url")
+  socialInstagram     String?  @map("social_instagram")
+  socialYoutube       String?  @map("social_youtube")
+  socialLinkedin      String?  @map("social_linkedin")
+  socialTwitter       String?  @map("social_twitter")
+  socialOther         String?  @map("social_other")
+  introVideoUrl       String?  @map("intro_video_url")
+  zoomLink            String?  @map("zoom_link")
+  acceptingStudents   Boolean  @default(true) @map("accepting_students")
+  featured            Boolean  @default(false)
+  profileCompleteness Int      @default(0) @map("profile_completeness")
+  profilePublished    Boolean  @default(false) @map("profile_published")
+  onboardingComplete  Boolean  @default(false) @map("onboarding_complete")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  application     FacultyApplication?
+  offerings       Offering[]
+  profileEdits    ProfileEdit[]
+  availability    AvailabilityPreferences?
+  media           FacultyMedia[]
+  tech            FacultyTech?
+  consents        Consent[]
+  payoutTracking  PayoutTracking[]
+  magicLinkTokens MagicLinkToken[]
+
+  @@map("faculty")
+}
+
+// ─── Faculty Application ───
+
+model FacultyApplication {
+  id              String    @id @default(uuid())
+  facultyId       String    @unique @map("faculty_id")
+  faculty         Faculty   @relation(fields: [facultyId], references: [id])
+  applicationData Json      @map("application_data")
+  status          String // pending_review | approved | rejected | changes_requested
+  submittedAt     DateTime  @default(now()) @map("submitted_at")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewerId      String?   @map("reviewer_id")
+  reviewNotes     String?   @map("review_notes")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("faculty_application")
+}
+
+// ─── Profile Edits (pending changes to public fields) ───
+
+model ProfileEdit {
+  id          String    @id @default(uuid())
+  facultyId   String    @map("faculty_id")
+  faculty     Faculty   @relation(fields: [facultyId], references: [id])
+  status      String // pending_approval | approved | rejected
+  changes     Json // key-value pairs of changed fields and new values
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewerId  String?   @map("reviewer_id")
+  reviewNotes String?   @map("review_notes")
+
+  @@map("profile_edits")
+}
+
+// ─── Offerings ───
+
+model Offering {
+  id                String   @id @default(uuid())
+  facultyId         String   @map("faculty_id")
+  faculty           Faculty  @relation(fields: [facultyId], references: [id])
+  offeringType      String   @map("offering_type") // private_lesson | masterclass | group_class | one_time_event | series
+  status            String // draft | pending_approval | approved | live | paused | archived | suspended | rejected
+  title             String?
+  description       String?
+  topic             String?
+  level             String? // beginner | intermediate | advanced | all_levels
+  ageGroups         String[] @map("age_groups")
+  format            String? // online | in_person | hybrid
+  durationMinutes   Int?     @map("duration_minutes")
+  price             Decimal  @db.Decimal(10, 2)
+  currency          String   @default("USD")
+  capacity          Int?
+  acceptingStudents Boolean  @default(true) @map("accepting_students")
+  prerequisites     String?
+  recordingAllowed  Boolean? @map("recording_allowed")
+  replayAllowed     Boolean? @map("replay_allowed")
+  materialsRequired String?  @map("materials_required")
+
+  // Scheduling
+  oneTime           Boolean   @default(false) @map("one_time")
+  recurringRule     String?   @map("recurring_rule")
+  proposedStartDate DateTime? @map("proposed_start_date")
+  proposedEndDate   DateTime? @map("proposed_end_date")
+  proposedSchedule  String?   @map("proposed_schedule")
+
+  // Series/term
+  seriesLength        Int?    @map("series_length")
+  termName            String? @map("term_name")
+  syllabus            String?
+  applicationRequired Boolean @default(false) @map("application_required")
+
+  // Masterclass specific
+  performerSeats Int?    @map("performer_seats")
+  observerSeats  Int?    @map("observer_seats")
+  eventType      String? @map("event_type")
+
+  // Variant info for Shopify
+  durationsOffered Json? @map("durations_offered")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  submittedAt DateTime? @map("submitted_at")
+  approvedAt  DateTime? @map("approved_at")
+  publishedAt DateTime? @map("published_at")
+
+  edits OfferingEdit[]
+
+  @@map("offerings")
+}
+
+// ─── Offering Edits (pending changes to live offerings) ───
+
+model OfferingEdit {
+  id          String    @id @default(uuid())
+  offeringId  String    @map("offering_id")
+  offering    Offering  @relation(fields: [offeringId], references: [id])
+  facultyId   String    @map("faculty_id")
+  status      String // pending_approval | approved | rejected
+  changes     Json
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewerId  String?   @map("reviewer_id")
+  reviewNotes String?   @map("review_notes")
+
+  @@map("offering_edits")
+}
+
+// ─── Availability Preferences ───
+
+model AvailabilityPreferences {
+  id                String   @id @default(uuid())
+  facultyId         String   @unique @map("faculty_id")
+  faculty           Faculty  @relation(fields: [facultyId], references: [id])
+  timezone          String?
+  weeklyHours       Json?    @map("weekly_hours")
+  blockedDates      Json?    @map("blocked_dates")
+  seasonalNotes     String?  @map("seasonal_notes")
+  leadTimeHours     Int?     @map("lead_time_hours")
+  bufferMinutes     Int?     @map("buffer_minutes")
+  maxSessionsPerDay Int?     @map("max_sessions_per_day")
+  acceptingStudents Boolean? @map("accepting_students")
+  pauseMode         Boolean  @default(false) @map("pause_mode")
+  pauseReason       String?  @map("pause_reason")
+  notesForAdmin     String?  @map("notes_for_admin")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("availability_preferences")
+}
+
+// ─── Faculty Media ───
+
+model FacultyMedia {
+  id          String   @id @default(uuid())
+  facultyId   String   @map("faculty_id")
+  faculty     Faculty  @relation(fields: [facultyId], references: [id])
+  mediaType   String   @map("media_type") // photo | video | recording | document | promo_asset
+  url         String
+  label       String?
+  description String?
+  visibility  String // private | admin_only | public
+  sortOrder   Int?     @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("faculty_media")
+}
+
+// ─── Faculty Tech ───
+
+model FacultyTech {
+  id                 String    @id @default(uuid())
+  facultyId          String    @unique @map("faculty_id")
+  faculty            Faculty   @relation(fields: [facultyId], references: [id])
+  zoomLink           String?   @map("zoom_link")
+  cameraSetup        String?   @map("camera_setup")
+  microphoneSetup    String?   @map("microphone_setup")
+  wifiQuality        String?   @map("wifi_quality") // excellent | good | fair | poor
+  backupPlan         String?   @map("backup_plan")
+  techNotes          String?   @map("tech_notes")
+  techCheckCompleted Boolean   @default(false) @map("tech_check_completed")
+  techCheckDate      DateTime? @map("tech_check_date")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@map("faculty_tech")
+}
+
+// ─── Consents ───
+
+model Consent {
+  id          String   @id @default(uuid())
+  facultyId   String   @map("faculty_id")
+  faculty     Faculty  @relation(fields: [facultyId], references: [id])
+  consentType String   @map("consent_type") // terms_of_service | privacy_policy | cancellation_policy | recording_policy | conduct_policy | payout_agreement | no_solicitation_agreement
+  version     String
+  acceptedAt  DateTime @default(now()) @map("accepted_at")
+  ipAddress   String?  @map("ip_address")
+
+  @@map("consents")
+}
+
+// ─── Approvals ───
+
+model Approval {
+  id                 String    @id @default(uuid())
+  objectType         String    @map("object_type") // faculty | offering | offering_edit | profile_update
+  objectId           String    @map("object_id")
+  actionType         String    @map("action_type") // new_application | new_offering | edit_offering | profile_change | pricing_change
+  status             String // pending | approved | rejected | changes_requested
+  submittedBy        String?   @map("submitted_by")
+  reviewedBy         String?   @map("reviewed_by")
+  reviewNotes        String?   @map("review_notes")
+  adminInternalNotes String?   @map("admin_internal_notes")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  resolvedAt         DateTime? @map("resolved_at")
+
+  // objectId is polymorphic (points to faculty, offering, or offering_edit) — no FK relation.
+  // App code uses manual queries with objectType + objectId to resolve the target.
+
+  @@index([objectType, objectId])
+  @@index([status])
+  @@index([objectType, status])
+  @@map("approvals")
+}
+
+// ─── Sync Shopify ───
+
+model SyncShopify {
+  id                String    @id @default(uuid())
+  objectType        String    @map("object_type") // faculty_metaobject | faculty_collection | offering_product
+  objectId          String    @map("object_id")
+  shopifyObjectType String    @map("shopify_object_type") // metaobject | collection | product
+  shopifyObjectId   String?   @map("shopify_object_id") // Shopify GID
+  shopifyHandle     String?   @map("shopify_handle")
+  syncStatus        String    @map("sync_status") // pending | synced | failed | needs_update
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  lastError         String?   @map("last_error")
+  retryCount        Int       @default(0) @map("retry_count")
+  syncSteps         Json?     @map("sync_steps")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // objectId is polymorphic (points to faculty or offering) — no FK relation.
+  // App code uses manual queries with objectType + objectId to resolve the target.
+
+  @@index([objectType, objectId])
+  @@index([syncStatus])
+  @@map("sync_shopify")
+}
+
+// ─── Sync Appointo ───
+
+model SyncAppointo {
+  id                 String    @id @default(uuid())
+  objectType         String    @map("object_type") // faculty_team_member | offering_product
+  objectId           String    @map("object_id")
+  appointoId         String?   @map("appointo_id")
+  syncStatus         String    @map("sync_status") // pending | manual | synced | failed
+  configurationNotes String?   @map("configuration_notes")
+  lastSyncedAt       DateTime? @map("last_synced_at")
+  lastError          String?   @map("last_error")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  // objectId is polymorphic (points to faculty or offering) — no FK relation.
+
+  @@index([objectType, objectId])
+  @@index([syncStatus])
+  @@map("sync_appointo")
+}
+
+// ─── Audit Log (immutable) ───
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorType  String   @map("actor_type") // teacher | admin | system
+  actorId    String?  @map("actor_id")
+  action     String // e.g., "faculty.created", "offering.submitted", "offering.approved"
+  objectType String?  @map("object_type")
+  objectId   String?  @map("object_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([objectId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ─── Payout Tracking ───
+
+model PayoutTracking {
+  id              String   @id @default(uuid())
+  facultyId       String   @map("faculty_id")
+  faculty         Faculty  @relation(fields: [facultyId], references: [id])
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  grossRevenue    Decimal  @map("gross_revenue") @db.Decimal(10, 2)
+  platformFees    Decimal  @map("platform_fees") @db.Decimal(10, 2)
+  teacherPayout   Decimal  @map("teacher_payout") @db.Decimal(10, 2)
+  payoutStatus    String   @map("payout_status") // pending | calculated | sent | confirmed
+  payoutMethod    String?  @map("payout_method")
+  payoutReference String?  @map("payout_reference")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("payout_tracking")
+}
+
+// ─── Magic Link Tokens ───
+
+model MagicLinkToken {
+  id        String    @id @default(uuid())
+  email     String
+  facultyId String?   @map("faculty_id")
+  faculty   Faculty?  @relation(fields: [facultyId], references: [id])
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("magic_link_tokens")
+}
+
+// ─── Admin Comments ───
+
+model AdminComment {
+  id               String   @id @default(uuid())
+  objectType       String   @map("object_type") // faculty | offering | offering_edit | profile_edit
+  objectId         String   @map("object_id")
+  authorId         String?  @map("author_id")
+  comment          String
+  visibleToTeacher Boolean  @default(true) @map("visible_to_teacher")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // objectId is polymorphic (points to faculty, offering, or edits) — no FK relation.
+
+  @@index([objectType, objectId])
+  @@map("admin_comments")
 }

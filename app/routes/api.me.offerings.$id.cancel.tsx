@@ -1,0 +1,60 @@
+// POST /api/me/offerings/:id/cancel — cancel a pending submission
+
+import type { ActionFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import prisma from "../db.server";
+import { requireTeacherAuth } from "../lib/auth.server";
+import { logAudit } from "../lib/audit.server";
+
+export async function action({ request, params }: ActionFunctionArgs) {
+  if (request.method !== "POST") {
+    return json({ error: "Method not allowed" }, { status: 405 });
+  }
+
+  const auth = await requireTeacherAuth(request);
+  const offeringId = params.id!;
+
+  const offering = await prisma.offering.findFirst({
+    where: { id: offeringId, facultyId: auth.facultyId },
+  });
+
+  if (!offering) {
+    return json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (offering.status !== "pending_approval") {
+    return json(
+      { error: "Only pending offerings can be cancelled" },
+      { status: 400 },
+    );
+  }
+
+  // Revert offering to draft
+  await prisma.offering.update({
+    where: { id: offeringId },
+    data: { status: "draft" },
+  });
+
+  // Cancel any pending approval records for this offering
+  await prisma.approval.updateMany({
+    where: {
+      objectId: offeringId,
+      objectType: "offering",
+      status: "pending",
+    },
+    data: {
+      status: "cancelled",
+      resolvedAt: new Date(),
+    },
+  });
+
+  await logAudit({
+    actorType: "teacher",
+    actorId: auth.facultyId,
+    action: "offering.submission_cancelled",
+    objectType: "offering",
+    objectId: offeringId,
+  });
+
+  return json({ success: true });
+}

@@ -1,0 +1,49 @@
+import type { ActionFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { logAudit } from "../lib/audit.server";
+import { syncOfferingStatus } from "../lib/provisioning.server";
+
+export async function action({ request, params }: ActionFunctionArgs) {
+  if (request.method !== "POST") {
+    return json({ error: "Method not allowed" }, { status: 405 });
+  }
+
+  const { admin, session } = await authenticate.admin(request);
+
+  const { id } = params;
+  if (!id) {
+    return json({ error: "Offering ID is required" }, { status: 400 });
+  }
+
+  try {
+    const offering = await prisma.offering.findUnique({ where: { id } });
+    if (!offering) {
+      return json({ error: "Offering not found" }, { status: 404 });
+    }
+
+    // Set offering to live
+    await prisma.offering.update({
+      where: { id },
+      data: { status: "live", publishedAt: new Date() },
+    });
+
+    // Sync product to ACTIVE in Shopify
+    const syncResult = await syncOfferingStatus(id, "ACTIVE", admin);
+
+    await logAudit({
+      actorType: "admin",
+      actorId: session.id,
+      action: "offering.published",
+      objectType: "offering",
+      objectId: id,
+    });
+
+    return json({ success: true, sync: syncResult });
+  } catch (error) {
+    console.error("Publish offering error:", error);
+    const message = error instanceof Error ? error.message : "Failed to publish offering";
+    return json({ error: message }, { status: 500 });
+  }
+}
