@@ -5,7 +5,16 @@ import prisma from "../db.server";
 import { logAudit } from "../lib/audit.server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend: Resend | null = null;
+function getResend() {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not set");
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 const FROM_EMAIL = "TGC Faculty <faculty@theglobalconservatory.com>";
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -39,7 +48,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
     const name = faculty.publicName || faculty.fullName || "Teacher";
 
-    await resend.emails.send({
+    await getResend().emails.send({
       from: FROM_EMAIL,
       to: faculty.email,
       subject: subject.trim(),

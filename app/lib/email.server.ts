@@ -1,6 +1,15 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend: Resend | null = null;
+function getResend() {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not set");
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 const FROM_EMAIL = "TGC Faculty <faculty@theglobalconservatory.com>";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "meetupreykjavik@gmail.com";
@@ -30,7 +39,7 @@ export async function sendMagicLinkEmail(email: string, token: string, isNew: bo
       <p style="color:#666;font-size:13px;">This link expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
     `;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject,
@@ -41,7 +50,7 @@ export async function sendMagicLinkEmail(email: string, token: string, isNew: bo
 // ─── Application Received ───
 
 export async function sendApplicationReceivedEmail(email: string, name: string) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Application Received — The Global Conservatory",
@@ -56,7 +65,7 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
 // ─── Application Approved ───
 
 export async function sendApplicationApprovedEmail(email: string, name: string) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Welcome to The Global Conservatory Faculty!",
@@ -72,7 +81,7 @@ export async function sendApplicationApprovedEmail(email: string, name: string) 
 // ─── Application Rejected ───
 
 export async function sendApplicationRejectedEmail(email: string, name: string, notes?: string) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Application Update — The Global Conservatory",
@@ -94,7 +103,7 @@ export async function sendChangesRequestedEmail(
   objectType: string,
   notes: string,
 ) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Action Needed — The Global Conservatory",
@@ -112,7 +121,7 @@ export async function sendChangesRequestedEmail(
 // ─── Offering Approved ───
 
 export async function sendOfferingApprovedEmail(email: string, name: string, offeringTitle: string) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Your Offering Is Live! — The Global Conservatory",
@@ -128,7 +137,7 @@ export async function sendOfferingApprovedEmail(email: string, name: string, off
 // ─── Profile Update Approved ───
 
 export async function sendProfileUpdateApprovedEmail(email: string, name: string) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: email,
     subject: "Profile Updated — The Global Conservatory",
@@ -167,7 +176,7 @@ export async function sendAdminNotification(
       <p>Log in to the Shopify Admin → TGC Faculty app to review.</p>
     `;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to: ADMIN_EMAIL,
     subject: `${typeLabels[type]} — TGC Faculty App`,
