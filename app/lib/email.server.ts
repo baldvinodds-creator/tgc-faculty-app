@@ -22,6 +22,15 @@ async function sendEmail(params: { from: string; to: string; subject: string; ht
   await resend.emails.send(params);
 }
 
+/** Escape HTML entities to prevent XSS in email templates */
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 // Use env var for FROM_EMAIL so we can switch between verified domains
 // Once theglobalconservatory.com is verified in Resend, update the env var
 const FROM_EMAIL = process.env.FROM_EMAIL || "TGC Faculty <onboarding@resend.dev>";
@@ -68,7 +77,7 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
     to: email,
     subject: "Application Received — The Global Conservatory",
     html: `
-      <h2>Thank You, ${name}!</h2>
+      <h2>Thank You, ${escHtml(name)}!</h2>
       <p>We've received your faculty application. Our team will review it and get back to you soon.</p>
       <p>You'll receive an email once a decision has been made.</p>
     `,
@@ -83,7 +92,7 @@ export async function sendApplicationApprovedEmail(email: string, name: string) 
     to: email,
     subject: "Welcome to The Global Conservatory Faculty!",
     html: `
-      <h2>Congratulations, ${name}!</h2>
+      <h2>Congratulations, ${escHtml(name)}!</h2>
       <p>Your application to The Global Conservatory faculty has been approved!</p>
       <p>Log in to your Faculty Portal to complete your profile and create your first offering:</p>
       <p><a href="${PORTAL_URL}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;">Go to Faculty Portal</a></p>
@@ -100,9 +109,9 @@ export async function sendApplicationRejectedEmail(email: string, name: string, 
     subject: "Application Update — The Global Conservatory",
     html: `
       <h2>Application Update</h2>
-      <p>Dear ${name},</p>
+      <p>Dear ${escHtml(name)},</p>
       <p>Thank you for your interest in The Global Conservatory. After careful review, we are unable to accept your application at this time.</p>
-      ${notes ? `<p><strong>Feedback:</strong> ${notes}</p>` : ""}
+      ${notes ? `<p><strong>Feedback:</strong> ${escHtml(notes)}</p>` : ""}
       <p>You are welcome to reapply in the future.</p>
     `,
   });
@@ -122,9 +131,9 @@ export async function sendChangesRequestedEmail(
     subject: "Action Needed — The Global Conservatory",
     html: `
       <h2>Changes Requested</h2>
-      <p>Hi ${name},</p>
-      <p>Our team has reviewed your ${objectType} and would like some changes:</p>
-      <blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#555;">${notes}</blockquote>
+      <p>Hi ${escHtml(name)},</p>
+      <p>Our team has reviewed your ${escHtml(objectType)} and would like some changes:</p>
+      <blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#555;">${escHtml(notes)}</blockquote>
       <p>Please log in to your Faculty Portal to make the requested changes:</p>
       <p><a href="${PORTAL_URL}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;">Go to Faculty Portal</a></p>
     `,
@@ -140,8 +149,8 @@ export async function sendOfferingApprovedEmail(email: string, name: string, off
     subject: "Your Offering Is Live! — The Global Conservatory",
     html: `
       <h2>Your Offering Is Live!</h2>
-      <p>Hi ${name},</p>
-      <p>Great news — your offering "<strong>${offeringTitle}</strong>" has been approved and is now live on the storefront.</p>
+      <p>Hi ${escHtml(name)},</p>
+      <p>Great news — your offering "<strong>${escHtml(offeringTitle)}</strong>" has been approved and is now live on the storefront.</p>
       <p><a href="${PORTAL_URL}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;">View in Portal</a></p>
     `,
   });
@@ -156,7 +165,7 @@ export async function sendProfileUpdateApprovedEmail(email: string, name: string
     subject: "Profile Updated — The Global Conservatory",
     html: `
       <h2>Profile Updated</h2>
-      <p>Hi ${name},</p>
+      <p>Hi ${escHtml(name)},</p>
       <p>Your profile changes have been approved and are now live on the storefront.</p>
     `,
   });
@@ -179,13 +188,13 @@ export async function sendAdminNotification(
   const body = type === "contact"
     ? `
       <h2>${typeLabels[type]} Submitted</h2>
-      <p><strong>From:</strong> ${details.teacherName} (${details.teacherEmail})</p>
-      <p><strong>Subject:</strong> ${details.subject || "No subject"}</p>
-      <p>${details.message || ""}</p>
+      <p><strong>From:</strong> ${escHtml(details.teacherName)} (${escHtml(details.teacherEmail)})</p>
+      <p><strong>Subject:</strong> ${escHtml(details.subject || "No subject")}</p>
+      <p>${escHtml(details.message || "")}</p>
     `
     : `
       <h2>${typeLabels[type]} Submitted</h2>
-      <p><strong>Teacher:</strong> ${details.teacherName} (${details.teacherEmail})</p>
+      <p><strong>Teacher:</strong> ${escHtml(details.teacherName)} (${escHtml(details.teacherEmail)})</p>
       <p>Log in to the Shopify Admin → TGC Faculty app to review.</p>
     `;
 
