@@ -34,36 +34,44 @@ const GATED_FIELDS = new Set([
   "introVideoUrl",
 ]);
 
-// Fields teachers can edit freely (internal data)
+// Fields teachers can edit freely (internal data, not public-facing)
 const FREE_FIELDS = new Set([
+  "fullName",
   "phone",
   "timezone",
   "zoomLink",
   "acceptingStudents",
+  "yearsExperience",
 ]);
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const faculty = await prisma.faculty.findUniqueOrThrow({
-    where: { id: auth.facultyId },
-    include: {
-      application: true,
-      availability: true,
-      tech: true,
-      offerings: {
-        select: { id: true, title: true, status: true, offeringType: true },
+    const faculty = await prisma.faculty.findUniqueOrThrow({
+      where: { id: auth.facultyId },
+      include: {
+        application: true,
+        availability: true,
+        tech: true,
+        offerings: {
+          select: { id: true, title: true, status: true, offeringType: true },
+        },
+        profileEdits: {
+          where: { status: "pending_approval" },
+        },
       },
-      profileEdits: {
-        where: { status: "pending_approval" },
-      },
-    },
-  });
+    });
 
-  return withCors(request, json({ faculty }));
+    return withCors(request, json({ faculty }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load profile error:", error);
+    return withCors(request, json({ error: "Failed to load profile" }, { status: 500 }));
+  }
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -71,6 +79,7 @@ export async function action({ request }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
+  try {
   const auth = await requireTeacherAuth(request);
   const body = await request.json();
 
@@ -149,4 +158,9 @@ export async function action({ request }: ActionFunctionArgs) {
       ? { id: pendingEdit.id, fields: Object.keys(gatedChanges) }
       : null,
   }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Update profile error:", error);
+    return withCors(request, json({ error: "Failed to update profile" }, { status: 500 }));
+  }
 }

@@ -34,9 +34,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Only draft or rejected offerings can be submitted" }, { status: 400 }));
   }
 
-  // Validate required fields
-  if (!offering.title || !offering.price) {
-    return withCors(request, json({ error: "Title and price are required before submitting" }, { status: 400 }));
+  // Validate required fields (price can be 0 for free offerings)
+  if (!offering.title) {
+    return withCors(request, json({ error: "Title is required before submitting" }, { status: 400 }));
+  }
+  if (offering.price == null) {
+    return withCors(request, json({ error: "Price is required before submitting" }, { status: 400 }));
   }
 
   await prisma.offering.update({

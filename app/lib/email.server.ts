@@ -22,7 +22,9 @@ async function sendEmail(params: { from: string; to: string; subject: string; ht
   await resend.emails.send(params);
 }
 
-const FROM_EMAIL = "TGC Faculty <faculty@theglobalconservatory.com>";
+// Use env var for FROM_EMAIL so we can switch between verified domains
+// Once theglobalconservatory.com is verified in Resend, update the env var
+const FROM_EMAIL = process.env.FROM_EMAIL || "TGC Faculty <onboarding@resend.dev>";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "meetupreykjavik@gmail.com";
 const APP_URL = process.env.SHOPIFY_APP_URL || "https://tgc-faculty-app.railway.app";
 const PORTAL_URL = "https://theglobalconservatory.com/apps/faculty";

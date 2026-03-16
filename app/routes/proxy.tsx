@@ -766,9 +766,17 @@ function buildLogin() {
 
 // ─── Apply ───
 function buildApply() {
+  var f = state.faculty || {};
+  var isResubmit = f.status === "changes_requested";
   var card = el("div", { className: "tgc-card" });
-  card.appendChild(el("h2", null, ["Apply to Teach at TGC"]));
-  card.appendChild(el("p", { style: { marginBottom: "24px", color: "var(--tgc-text-secondary)" } }, ["Complete the form below. Our team reviews every application personally."]));
+  card.appendChild(el("h2", null, [isResubmit ? "Update Your Application" : "Apply to Teach at TGC"]));
+  if (isResubmit && f.application && f.application.reviewNotes) {
+    var alert = el("div", { className: "tgc-alert tgc-alert-warning", style: { marginBottom: "20px" } });
+    alert.appendChild(el("strong", null, ["Requested changes: "]));
+    alert.appendChild(document.createTextNode(f.application.reviewNotes));
+    card.appendChild(alert);
+  }
+  card.appendChild(el("p", { style: { marginBottom: "24px", color: "var(--tgc-text-secondary)" } }, [isResubmit ? "Make the requested changes and resubmit." : "Complete the form below. Our team reviews every application personally."]));
 
   function fg(labelText, inputEl, hint) {
     var g = el("div", { className: "tgc-form-group" });
@@ -784,58 +792,70 @@ function buildApply() {
     return r;
   }
 
-  function selectEl(id, options) {
+  function selectEl(id, options, selected) {
     var s = el("select", { id: id });
     options.forEach(function(o) {
-      var opt = el("option", { value: typeof o === "string" ? o : o[0] }, [typeof o === "string" ? o : o[1]]);
+      var val = typeof o === "string" ? o : o[0];
+      var label = typeof o === "string" ? o : o[1];
+      var opt = el("option", { value: val }, [label]);
+      if (selected && val === selected) opt.selected = true;
       s.appendChild(opt);
     });
     return s;
   }
 
+  // Pre-populate for resubmissions
+  var nameParts = (f.fullName || "").split(" ");
+  var firstName = isResubmit ? nameParts[0] || "" : "";
+  var lastName = isResubmit ? nameParts.slice(1).join(" ") || "" : "";
+
   card.appendChild(row([
-    fg("First Name *", el("input", { type: "text", id: "app-first" })),
-    fg("Last Name *", el("input", { type: "text", id: "app-last" }))
+    fg("First Name *", el("input", { type: "text", id: "app-first", value: firstName })),
+    fg("Last Name *", el("input", { type: "text", id: "app-last", value: lastName }))
   ]));
 
-  card.appendChild(fg("Public / Stage Name", el("input", { type: "text", id: "app-public", placeholder: "How you want to appear on the site" })));
+  card.appendChild(fg("Public / Stage Name", el("input", { type: "text", id: "app-public", placeholder: "How you want to appear on the site", value: isResubmit ? (f.publicName || "") : "" })));
 
   card.appendChild(row([
-    fg("Phone", el("input", { type: "tel", id: "app-phone" })),
-    fg("Country *", el("input", { type: "text", id: "app-country" }))
+    fg("Phone", el("input", { type: "tel", id: "app-phone", value: isResubmit ? (f.phone || "") : "" })),
+    fg("Country *", el("input", { type: "text", id: "app-country", value: isResubmit ? (f.country || "") : "" }))
   ]));
 
   card.appendChild(row([
-    fg("City", el("input", { type: "text", id: "app-city" })),
-    fg("Timezone", selectEl("app-tz", [["","Select..."],"America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Europe/London","Europe/Paris","Europe/Berlin","Asia/Tokyo","Asia/Shanghai","Australia/Sydney","Pacific/Auckland"]))
+    fg("City", el("input", { type: "text", id: "app-city", value: isResubmit ? (f.city || "") : "" })),
+    fg("Timezone", selectEl("app-tz", [["","Select..."],"America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Europe/London","Europe/Paris","Europe/Berlin","Asia/Tokyo","Asia/Shanghai","Australia/Sydney","Pacific/Auckland"], isResubmit ? f.timezone : ""))
   ]));
 
   card.appendChild(el("hr", { className: "tgc-divider" }));
 
   var instruments = [["","Select..."],"Voice","Piano","Violin","Viola","Cello","Double Bass","Flute","Oboe","Clarinet","Bassoon","Trumpet","French Horn","Trombone","Tuba","Percussion","Guitar","Harp","Composition","Theory","Conducting","Chamber Music","Music Business","Music Technology","Other"];
-  card.appendChild(fg("Primary Instrument / Discipline *", selectEl("app-instrument", instruments)));
+  card.appendChild(fg("Primary Instrument / Discipline *", selectEl("app-instrument", instruments, isResubmit ? f.primaryInstrument : "")));
 
   var divisions = [["","Select..."],"Voice","Piano","Strings","Winds","Brass","Percussion","Composition","Theory","Conducting","Other"];
-  card.appendChild(fg("Division", selectEl("app-division", divisions)));
+  card.appendChild(fg("Division", selectEl("app-division", divisions, isResubmit ? f.division : "")));
 
-  card.appendChild(fg("Teaching Languages", el("input", { type: "text", id: "app-langs", placeholder: "English, Spanish, French..." }), "Comma-separated"));
-  card.appendChild(fg("Years of Teaching Experience", el("input", { type: "number", id: "app-years", min: "0", max: "60" })));
-
-  card.appendChild(el("hr", { className: "tgc-divider" }));
-
-  card.appendChild(fg("Short Bio *", el("textarea", { id: "app-bio", placeholder: "2-3 sentences about your background and teaching philosophy", maxlength: "500" }), "Max 500 characters"));
-  card.appendChild(fg("Credentials & Education", el("textarea", { id: "app-creds", placeholder: "Degrees, certifications, notable training..." })));
-  card.appendChild(fg("Institutions / Affiliations", el("input", { type: "text", id: "app-inst", placeholder: "University, orchestras, ensembles..." })));
-  card.appendChild(fg("Specialties / Genres", el("input", { type: "text", id: "app-specs", placeholder: "Baroque, Jazz, Opera, Contemporary..." }), "Comma-separated"));
+  card.appendChild(fg("Teaching Languages", el("input", { type: "text", id: "app-langs", placeholder: "English, Spanish, French...", value: isResubmit ? (f.teachingLanguages || []).join(", ") : "" }), "Comma-separated"));
+  card.appendChild(fg("Years of Teaching Experience", el("input", { type: "number", id: "app-years", min: "0", max: "60", value: isResubmit ? String(f.yearsExperience || "") : "" })));
 
   card.appendChild(el("hr", { className: "tgc-divider" }));
 
-  card.appendChild(fg("Website", el("input", { type: "url", id: "app-web", placeholder: "https://..." })));
-  card.appendChild(fg("Headshot URL", el("input", { type: "url", id: "app-head", placeholder: "https://..." }), "Direct link to a professional headshot"));
+  var bioTA = el("textarea", { id: "app-bio", placeholder: "2-3 sentences about your background and teaching philosophy", maxlength: "500" });
+  if (isResubmit) bioTA.value = f.shortBio || "";
+  card.appendChild(fg("Short Bio *", bioTA, "Max 500 characters"));
+  var credsTA = el("textarea", { id: "app-creds", placeholder: "Degrees, certifications, notable training..." });
+  if (isResubmit) credsTA.value = f.credentials || "";
+  card.appendChild(fg("Credentials & Education", credsTA));
+  card.appendChild(fg("Institutions / Affiliations", el("input", { type: "text", id: "app-inst", placeholder: "University, orchestras, ensembles...", value: isResubmit ? (f.institutions || "") : "" })));
+  card.appendChild(fg("Specialties / Genres", el("input", { type: "text", id: "app-specs", placeholder: "Baroque, Jazz, Opera, Contemporary...", value: isResubmit ? (f.specialties || []).join(", ") : "" }), "Comma-separated"));
+
+  card.appendChild(el("hr", { className: "tgc-divider" }));
+
+  card.appendChild(fg("Website", el("input", { type: "url", id: "app-web", placeholder: "https://...", value: isResubmit ? (f.websiteUrl || "") : "" })));
+  card.appendChild(fg("Headshot URL", el("input", { type: "url", id: "app-head", placeholder: "https://...", value: isResubmit ? (f.headshotUrl || "") : "" }), "Direct link to a professional headshot"));
 
   card.appendChild(row([
-    fg("Instagram", el("input", { type: "text", id: "app-ig", placeholder: "@handle" })),
-    fg("YouTube", el("input", { type: "url", id: "app-yt" }))
+    fg("Instagram", el("input", { type: "text", id: "app-ig", placeholder: "@handle", value: isResubmit ? (f.socialInstagram || "") : "" })),
+    fg("YouTube", el("input", { type: "url", id: "app-yt", value: isResubmit ? (f.socialYoutube || "") : "" }))
   ]));
 
   card.appendChild(el("hr", { className: "tgc-divider" }));
@@ -892,10 +912,16 @@ function buildApply() {
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting...";
 
-    api("/api/me", { method: "PUT", body: JSON.stringify(body) })
-      .then(function() {
-        toast("Application submitted!", "success");
-        loadProfile();
+    api("/api/me/application/submit", { method: "POST", body: JSON.stringify(body) })
+      .then(function(data) {
+        if (data.success) {
+          toast("Application submitted!", "success");
+          loadProfile();
+        } else {
+          toast(data.error || "Failed to submit", "error");
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit Application";
+        }
       })
       .catch(function(err) {
         toast("Error: " + err.message, "error");
@@ -1317,6 +1343,50 @@ function buildOfferingForm(id) {
       });
       btnRow.appendChild(delBtn);
     }
+
+    if (o.status === "live") {
+      var pauseBtn = el("button", { className: "tgc-btn tgc-btn-outline tgc-btn-sm" }, ["Pause Offering"]);
+      pauseBtn.addEventListener("click", function() {
+        if (!confirm("Pause this offering? Students won't be able to book until you resume.")) return;
+        pauseBtn.disabled = true;
+        api("/api/me/offerings/" + id + "/pause", { method: "POST" })
+          .then(function(data) {
+            if (data.success) { toast("Offering paused", "success"); loadOfferings(); }
+            else { toast(data.error || "Failed", "error"); pauseBtn.disabled = false; }
+          })
+          .catch(function(err) { toast(err.message, "error"); pauseBtn.disabled = false; });
+      });
+      btnRow.appendChild(pauseBtn);
+    }
+
+    if (o.status === "paused") {
+      var resumeBtn = el("button", { className: "tgc-btn tgc-btn-gold tgc-btn-sm" }, ["Resume Offering"]);
+      resumeBtn.addEventListener("click", function() {
+        resumeBtn.disabled = true;
+        api("/api/me/offerings/" + id + "/resume", { method: "POST" })
+          .then(function(data) {
+            if (data.success) { toast("Offering resumed", "success"); loadOfferings(); }
+            else { toast(data.error || "Failed", "error"); resumeBtn.disabled = false; }
+          })
+          .catch(function(err) { toast(err.message, "error"); resumeBtn.disabled = false; });
+      });
+      btnRow.appendChild(resumeBtn);
+    }
+
+    if (o.status === "pending_approval") {
+      var cancelBtn = el("button", { className: "tgc-btn tgc-btn-outline tgc-btn-sm" }, ["Cancel Submission"]);
+      cancelBtn.addEventListener("click", function() {
+        if (!confirm("Cancel this submission? The offering will go back to draft.")) return;
+        cancelBtn.disabled = true;
+        api("/api/me/offerings/" + id + "/cancel", { method: "POST" })
+          .then(function(data) {
+            if (data.success) { toast("Submission cancelled", "success"); loadOfferings(); }
+            else { toast(data.error || "Failed", "error"); cancelBtn.disabled = false; }
+          })
+          .catch(function(err) { toast(err.message, "error"); cancelBtn.disabled = false; });
+      });
+      btnRow.appendChild(cancelBtn);
+    }
   } else {
     var createBtn = el("button", { className: "tgc-btn tgc-btn-gold" }, ["Create Draft"]);
     createBtn.addEventListener("click", function() {
@@ -1540,6 +1610,29 @@ function buildMedia() {
   techCard.appendChild(fg("Backup Plan", backupTA));
   var techNotesTA = el("textarea", { id: "tech-notes", style: { minHeight: "60px" } }); techNotesTA.value = t.techNotes || "";
   techCard.appendChild(fg("Tech Notes", techNotesTA));
+
+  var techSaveBtn = el("button", { className: "tgc-btn tgc-btn-gold" }, ["Save Tech Setup"]);
+  techSaveBtn.addEventListener("click", function() {
+    var body = {
+      zoomLink: document.getElementById("tech-zoom").value.trim(),
+      cameraSetup: document.getElementById("tech-cam").value.trim(),
+      microphoneSetup: document.getElementById("tech-mic").value.trim(),
+      wifiQuality: document.getElementById("tech-wifi").value || null,
+      backupPlan: document.getElementById("tech-backup").value.trim(),
+      techNotes: document.getElementById("tech-notes").value.trim()
+    };
+    techSaveBtn.disabled = true;
+    api("/api/me/tech", { method: "PUT", body: JSON.stringify(body) })
+      .then(function(data) {
+        if (data.success) toast("Tech setup saved", "success");
+        else toast(data.error || "Failed", "error");
+        techSaveBtn.disabled = false;
+      })
+      .catch(function(err) { toast(err.message, "error"); techSaveBtn.disabled = false; });
+  });
+  var techBtnRow = el("div", { className: "tgc-btn-row" });
+  techBtnRow.appendChild(techSaveBtn);
+  techCard.appendChild(techBtnRow);
 
   frag.appendChild(techCard);
   return frag;
