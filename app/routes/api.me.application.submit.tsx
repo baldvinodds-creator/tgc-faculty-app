@@ -72,6 +72,7 @@ export async function action({ request }: ActionFunctionArgs) {
         longBio: body.longBio?.trim() || null,
         credentials: body.credentials?.trim() || null,
         institutions: body.institutions?.trim() || null,
+        awards: body.awards?.trim() || null,
         specialties: body.specialties || [],
         primaryInstrument,
         division: body.division || null,
@@ -85,8 +86,41 @@ export async function action({ request }: ActionFunctionArgs) {
         headshotUrl: body.headshotUrl?.trim() || null,
         socialInstagram: body.socialInstagram?.trim() || null,
         socialYoutube: body.socialYoutube?.trim() || null,
+        zoomLink: body.zoomLink?.trim() || null,
       },
     });
+
+    // Create/update FacultyTech record with technical setup answers
+    if (body.zoomFamiliarity || body.microphoneType || body.wifiReliable) {
+      await prisma.facultyTech.upsert({
+        where: { facultyId: auth.facultyId },
+        create: {
+          facultyId: auth.facultyId,
+          zoomLink: body.zoomLink?.trim() || null,
+          microphoneSetup: body.microphoneType || null,
+          cameraSetup: body.dedicatedCamera === "Yes" ? (body.techSetupDescription?.trim() || "Yes") : "No dedicated setup",
+          wifiQuality: body.wifiReliable === "Yes" ? "good" : "poor",
+          backupPlan: body.backupPlan === "Yes" ? "Has backup plan" : null,
+          techNotes: [
+            body.zoomFamiliarity ? "Zoom: " + body.zoomFamiliarity : "",
+            body.usesAiTools === "Yes" ? "AI tools: " + (body.aiToolsExplanation?.trim() || "Yes") : "",
+            body.techSetupDescription?.trim() || "",
+          ].filter(Boolean).join(" | ") || null,
+        },
+        update: {
+          zoomLink: body.zoomLink?.trim() || null,
+          microphoneSetup: body.microphoneType || null,
+          cameraSetup: body.dedicatedCamera === "Yes" ? (body.techSetupDescription?.trim() || "Yes") : "No dedicated setup",
+          wifiQuality: body.wifiReliable === "Yes" ? "good" : "poor",
+          backupPlan: body.backupPlan === "Yes" ? "Has backup plan" : null,
+          techNotes: [
+            body.zoomFamiliarity ? "Zoom: " + body.zoomFamiliarity : "",
+            body.usesAiTools === "Yes" ? "AI tools: " + (body.aiToolsExplanation?.trim() || "Yes") : "",
+            body.techSetupDescription?.trim() || "",
+          ].filter(Boolean).join(" | ") || null,
+        },
+      });
+    }
 
     // Calculate and save profile completeness
     const completeness = calculateProfileCompleteness(updatedFaculty);
@@ -95,26 +129,8 @@ export async function action({ request }: ActionFunctionArgs) {
       data: { profileCompleteness: completeness },
     });
 
-    // Create or update FacultyApplication record
-    const applicationData = {
-      fullName,
-      publicName: body.publicName?.trim() || fullName,
-      shortBio,
-      credentials: body.credentials?.trim() || null,
-      institutions: body.institutions?.trim() || null,
-      specialties: body.specialties || [],
-      primaryInstrument,
-      division: body.division || null,
-      country,
-      city: body.city?.trim() || null,
-      timezone: body.timezone || null,
-      teachingLanguages: body.teachingLanguages || [],
-      yearsExperience: body.yearsExperience || null,
-      websiteUrl: body.websiteUrl?.trim() || null,
-      headshotUrl: body.headshotUrl?.trim() || null,
-      socialInstagram: body.socialInstagram?.trim() || null,
-      socialYoutube: body.socialYoutube?.trim() || null,
-    };
+    // Create or update FacultyApplication record — store the entire form submission
+    const applicationData = { ...body, fullName, shortBio, primaryInstrument, country };
 
     if (faculty.application) {
       // Update existing (e.g., re-submission after changes_requested)
