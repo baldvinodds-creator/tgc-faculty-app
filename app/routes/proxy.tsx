@@ -1611,7 +1611,3 @@ checkAuth();
 
 })();
 `;
-
-export default function ProxyRoute() {
-  return null; // This route only uses the loader
-}
