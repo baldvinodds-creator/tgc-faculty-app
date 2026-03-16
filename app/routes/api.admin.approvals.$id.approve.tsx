@@ -58,6 +58,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
         result = await approveProfileEdit(approval.objectId, reviewerId, admin);
         break;
       }
+      case "media": {
+        // Set media visibility to public
+        await prisma.facultyMedia.update({
+          where: { id: approval.objectId },
+          data: { visibility: "public" },
+        });
+        await prisma.approval.update({
+          where: { id },
+          data: { status: "approved", reviewedBy: reviewerId, resolvedAt: new Date() },
+        });
+        result = { mediaId: approval.objectId, visibility: "public" };
+        break;
+      }
       default:
         return json({ error: `Unknown approval object type: ${approval.objectType}` }, { status: 400 });
     }

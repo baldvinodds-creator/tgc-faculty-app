@@ -73,6 +73,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
         ));
       }
 
+      // If teacher wants to change visibility to "public", gate it
+      const requestedVisibility = body.visibility ?? media.visibility;
+      const needsApproval = body.visibility === "public" && media.visibility !== "public";
+      const effectiveVisibility = needsApproval ? "admin_only" : requestedVisibility;
+
       const updated = await prisma.facultyMedia.update({
         where: { id: mediaId },
         data: {
@@ -80,10 +85,23 @@ export async function action({ request, params }: ActionFunctionArgs) {
           url: body.url ?? media.url,
           label: body.label !== undefined ? body.label : media.label,
           description: body.description !== undefined ? body.description : media.description,
-          visibility: body.visibility ?? media.visibility,
+          visibility: effectiveVisibility,
           sortOrder: body.sortOrder !== undefined ? body.sortOrder : media.sortOrder,
         },
       });
+
+      // Create approval request if teacher wants public visibility
+      if (needsApproval) {
+        await prisma.approval.create({
+          data: {
+            objectType: "media",
+            objectId: mediaId,
+            actionType: "media_public",
+            status: "pending",
+            submittedBy: auth.facultyId,
+          },
+        });
+      }
 
       await logAudit({
         actorType: "teacher",
@@ -91,10 +109,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
         action: "media.updated",
         objectType: "media",
         objectId: mediaId,
-        details: { fields: Object.keys(body) },
+        details: { fields: Object.keys(body), needsApproval },
       });
 
-      return withCors(request, json({ media: updated }));
+      return withCors(request, json({
+        media: updated,
+        pendingApproval: needsApproval,
+        message: needsApproval ? "Public visibility pending admin approval" : undefined,
+      }));
     }
 
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));

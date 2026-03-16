@@ -68,6 +68,10 @@ export async function action({ request }: ActionFunctionArgs) {
       ));
     }
 
+    // If teacher requests "public", gate it behind admin approval
+    const effectiveVisibility = visibility === "public" ? "admin_only" : visibility;
+    const needsApproval = visibility === "public";
+
     const media = await prisma.facultyMedia.create({
       data: {
         facultyId: auth.facultyId,
@@ -75,10 +79,23 @@ export async function action({ request }: ActionFunctionArgs) {
         url: body.url,
         label: body.label || null,
         description: body.description || null,
-        visibility,
+        visibility: effectiveVisibility,
         sortOrder: body.sortOrder ?? null,
       },
     });
+
+    // Create approval request if teacher wants public visibility
+    if (needsApproval) {
+      await prisma.approval.create({
+        data: {
+          objectType: "media",
+          objectId: media.id,
+          actionType: "media_public",
+          status: "pending",
+          submittedBy: auth.facultyId,
+        },
+      });
+    }
 
     await logAudit({
       actorType: "teacher",
@@ -86,10 +103,14 @@ export async function action({ request }: ActionFunctionArgs) {
       action: "media.created",
       objectType: "media",
       objectId: media.id,
-      details: { mediaType, visibility },
+      details: { mediaType, visibility, effectiveVisibility, needsApproval },
     });
 
-    return withCors(request, json({ media }, { status: 201 }));
+    return withCors(request, json({
+      media,
+      pendingApproval: needsApproval,
+      message: needsApproval ? "Media created — public visibility pending admin approval" : undefined,
+    }, { status: 201 }));
   } catch (error) {
     if (error instanceof Response) throw error;
     console.error("Create media error:", error);

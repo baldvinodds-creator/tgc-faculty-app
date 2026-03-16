@@ -64,6 +64,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
         await rejectProfileEdit(approval.objectId, reviewerId, trimmedNotes);
         break;
       }
+      case "media": {
+        // Keep media as admin_only (don't make public), resolve approval
+        await prisma.approval.update({
+          where: { id },
+          data: {
+            status: "rejected",
+            reviewedBy: reviewerId,
+            reviewNotes: trimmedNotes,
+            resolvedAt: new Date(),
+          },
+        });
+        break;
+      }
       default:
         return json({ error: `Unknown approval object type: ${approval.objectType}` }, { status: 400 });
     }
