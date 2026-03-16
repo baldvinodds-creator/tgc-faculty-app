@@ -7,8 +7,12 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   const offeringsBase = await prisma.offering.findMany({
@@ -41,12 +45,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     adminComments: commentMap.get(o.id) || [],
   }));
 
-  return json({ offerings });
+  return withCors(request, json({ offerings }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -95,5 +99,5 @@ export async function action({ request }: ActionFunctionArgs) {
     objectId: offering.id,
   });
 
-  return json({ offering }, { status: 201 });
+  return withCors(request, json({ offering }, { status: 201 }));
 }

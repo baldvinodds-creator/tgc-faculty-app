@@ -6,6 +6,7 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const VALID_MEDIA_TYPES = new Set([
   "photo",
@@ -18,6 +19,9 @@ const VALID_MEDIA_TYPES = new Set([
 const VALID_VISIBILITY = new Set(["private", "admin_only", "public"]);
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   const media = await prisma.facultyMedia.findMany({
@@ -25,12 +29,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { sortOrder: "asc" },
   });
 
-  return json({ media });
+  return withCors(request, json({ media }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -38,23 +42,23 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // Validate required fields
   if (!body.url) {
-    return json({ error: "url is required" }, { status: 400 });
+    return withCors(request, json({ error: "url is required" }, { status: 400 }));
   }
 
   const mediaType = body.mediaType || "photo";
   if (!VALID_MEDIA_TYPES.has(mediaType)) {
-    return json(
+    return withCors(request, json(
       { error: `Invalid mediaType. Must be one of: ${[...VALID_MEDIA_TYPES].join(", ")}` },
       { status: 400 },
-    );
+    ));
   }
 
   const visibility = body.visibility || "private";
   if (!VALID_VISIBILITY.has(visibility)) {
-    return json(
+    return withCors(request, json(
       { error: `Invalid visibility. Must be one of: ${[...VALID_VISIBILITY].join(", ")}` },
       { status: 400 },
-    );
+    ));
   }
 
   const media = await prisma.facultyMedia.create({
@@ -78,5 +82,5 @@ export async function action({ request }: ActionFunctionArgs) {
     details: { mediaType, visibility },
   });
 
-  return json({ media }, { status: 201 });
+  return withCors(request, json({ media }, { status: 201 }));
 }

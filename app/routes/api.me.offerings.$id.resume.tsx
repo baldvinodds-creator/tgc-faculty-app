@@ -1,14 +1,21 @@
 // POST /api/me/offerings/:id/resume — resume a paused offering
 
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+}
 
 export async function action({ request, params }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -19,14 +26,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
   });
 
   if (!offering) {
-    return json({ error: "Not found" }, { status: 404 });
+    return withCors(request, json({ error: "Not found" }, { status: 404 }));
   }
 
   if (offering.status !== "paused") {
-    return json(
+    return withCors(request, json(
       { error: "Only paused offerings can be resumed" },
       { status: 400 },
-    );
+    ));
   }
 
   // Update local status
@@ -68,5 +75,5 @@ export async function action({ request, params }: ActionFunctionArgs) {
     objectId: offeringId,
   });
 
-  return json({ success: true });
+  return withCors(request, json({ success: true }));
 }

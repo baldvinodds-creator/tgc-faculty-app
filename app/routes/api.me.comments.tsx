@@ -4,8 +4,12 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   // Gather all object IDs belonging to this teacher
@@ -42,5 +46,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { createdAt: "desc" },
   });
 
-  return json({ comments });
+  return withCors(request, json({ comments }));
 }

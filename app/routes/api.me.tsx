@@ -8,6 +8,7 @@ import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
 import { calculateProfileCompleteness } from "../lib/workflows.server";
 import { sendAdminNotification } from "../lib/email.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 // Fields that require admin approval (public-facing)
 const GATED_FIELDS = new Set([
@@ -42,6 +43,9 @@ const FREE_FIELDS = new Set([
 ]);
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   const faculty = await prisma.faculty.findUniqueOrThrow({
@@ -59,12 +63,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     },
   });
 
-  return json({ faculty });
+  return withCors(request, json({ faculty }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "PUT") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -138,11 +142,11 @@ export async function action({ request }: ActionFunctionArgs) {
     });
   }
 
-  return json({
+  return withCors(request, json({
     success: true,
     freeFieldsUpdated: Object.keys(freeUpdates),
     pendingEdit: pendingEdit
       ? { id: pendingEdit.id, fields: Object.keys(gatedChanges) }
       : null,
-  });
+  }));
 }

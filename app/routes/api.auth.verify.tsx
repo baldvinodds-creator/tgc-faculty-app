@@ -7,19 +7,23 @@ import { redirect } from "@remix-run/node";
 import prisma from "../db.server";
 import { verifyMagicLinkToken, createJWT } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
 
   if (!token) {
-    return redirect("/apps/faculty?error=missing_token");
+    return withCors(request, redirect("/apps/faculty?error=missing_token"));
   }
 
   const result = await verifyMagicLinkToken(token);
 
   if (!result) {
-    return redirect("/apps/faculty?error=invalid_or_expired_token");
+    return withCors(request, redirect("/apps/faculty?error=invalid_or_expired_token"));
   }
 
   // Get or create faculty record
@@ -56,5 +60,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // Redirect to teacher portal with JWT in URL hash (SPA picks it up)
   // The hash fragment is NOT sent to the server on subsequent requests
-  return redirect(`/apps/faculty#token=${jwt}`);
+  return withCors(request, redirect(`/apps/faculty#token=${jwt}`));
 }

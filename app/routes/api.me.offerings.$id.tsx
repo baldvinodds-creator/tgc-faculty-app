@@ -9,8 +9,12 @@ import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
 import { sendAdminNotification } from "../lib/email.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   const offeringBase = await prisma.offering.findFirst({
@@ -21,7 +25,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   });
 
   if (!offeringBase) {
-    return json({ error: "Not found" }, { status: 404 });
+    return withCors(request, json({ error: "Not found" }, { status: 404 }));
   }
 
   const adminComments = await prisma.adminComment.findMany({
@@ -31,7 +35,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
   const offering = { ...offeringBase, adminComments };
 
-  return json({ offering });
+  return withCors(request, json({ offering }));
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -43,13 +47,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
   });
 
   if (!offering) {
-    return json({ error: "Not found" }, { status: 404 });
+    return withCors(request, json({ error: "Not found" }, { status: 404 }));
   }
 
   // DELETE — only drafts
   if (request.method === "DELETE") {
     if (offering.status !== "draft") {
-      return json({ error: "Can only delete draft offerings" }, { status: 400 });
+      return withCors(request, json({ error: "Can only delete draft offerings" }, { status: 400 }));
     }
 
     await prisma.offering.delete({ where: { id: offeringId } });
@@ -62,7 +66,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       objectId: offeringId,
     });
 
-    return json({ success: true });
+    return withCors(request, json({ success: true }));
   }
 
   // PUT — update
@@ -100,7 +104,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
         },
       });
 
-      return json({ success: true, mode: "direct" });
+      return withCors(request, json({ success: true, mode: "direct" }));
     }
 
     if (offering.status === "live" || offering.status === "approved") {
@@ -113,7 +117,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       }
 
       if (Object.keys(changes).length === 0) {
-        return json({ success: true, mode: "no_changes" });
+        return withCors(request, json({ success: true, mode: "no_changes" }));
       }
 
       const edit = await prisma.offeringEdit.create({
@@ -153,11 +157,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
         teacherEmail: faculty.email,
       });
 
-      return json({ success: true, mode: "pending_edit", editId: edit.id });
+      return withCors(request, json({ success: true, mode: "pending_edit", editId: edit.id }));
     }
 
-    return json({ error: "Cannot edit offering in current status" }, { status: 400 });
+    return withCors(request, json({ error: "Cannot edit offering in current status" }, { status: 400 }));
   }
 
-  return json({ error: "Method not allowed" }, { status: 405 });
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
 }

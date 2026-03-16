@@ -1,11 +1,12 @@
 // PUT    /api/me/media/:id — update a media record
 // DELETE /api/me/media/:id — delete a media record
 
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const VALID_MEDIA_TYPES = new Set([
   "photo",
@@ -17,6 +18,12 @@ const VALID_MEDIA_TYPES = new Set([
 
 const VALID_VISIBILITY = new Set(["private", "admin_only", "public"]);
 
+export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+}
+
 export async function action({ request, params }: ActionFunctionArgs) {
   const auth = await requireTeacherAuth(request);
   const mediaId = params.id!;
@@ -27,7 +34,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   });
 
   if (!media) {
-    return json({ error: "Not found" }, { status: 404 });
+    return withCors(request, json({ error: "Not found" }, { status: 404 }));
   }
 
   // DELETE
@@ -42,7 +49,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       objectId: mediaId,
     });
 
-    return json({ success: true });
+    return withCors(request, json({ success: true }));
   }
 
   // PUT
@@ -51,18 +58,18 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
     // Validate mediaType if provided
     if (body.mediaType && !VALID_MEDIA_TYPES.has(body.mediaType)) {
-      return json(
+      return withCors(request, json(
         { error: `Invalid mediaType. Must be one of: ${[...VALID_MEDIA_TYPES].join(", ")}` },
         { status: 400 },
-      );
+      ));
     }
 
     // Validate visibility if provided
     if (body.visibility && !VALID_VISIBILITY.has(body.visibility)) {
-      return json(
+      return withCors(request, json(
         { error: `Invalid visibility. Must be one of: ${[...VALID_VISIBILITY].join(", ")}` },
         { status: 400 },
-      );
+      ));
     }
 
     const updated = await prisma.facultyMedia.update({
@@ -86,8 +93,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
       details: { fields: Object.keys(body) },
     });
 
-    return json({ media: updated });
+    return withCors(request, json({ media: updated }));
   }
 
-  return json({ error: "Method not allowed" }, { status: 405 });
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
 }

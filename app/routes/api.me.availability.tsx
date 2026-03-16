@@ -6,6 +6,7 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const ALLOWED_FIELDS = new Set([
   "timezone",
@@ -22,18 +23,21 @@ const ALLOWED_FIELDS = new Set([
 ]);
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   const availability = await prisma.availabilityPreferences.findUnique({
     where: { facultyId: auth.facultyId },
   });
 
-  return json({ availability: availability || null });
+  return withCors(request, json({ availability: availability || null }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "PUT") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -48,7 +52,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (Object.keys(data).length === 0) {
-    return json({ error: "No valid fields provided" }, { status: 400 });
+    return withCors(request, json({ error: "No valid fields provided" }, { status: 400 }));
   }
 
   // Upsert availability preferences
@@ -79,5 +83,5 @@ export async function action({ request }: ActionFunctionArgs) {
     details: { fields: Object.keys(data) },
   });
 
-  return json({ success: true, availability });
+  return withCors(request, json({ success: true, availability }));
 }

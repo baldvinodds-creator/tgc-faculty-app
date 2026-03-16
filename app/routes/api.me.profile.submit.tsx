@@ -1,16 +1,23 @@
 // POST /api/me/profile/submit — submit profile for initial review
 // Used by approved teachers completing their profile before going active
 
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
 import { sendAdminNotification } from "../lib/email.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+}
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -26,21 +33,21 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // Only approved (not yet active) teachers can use this endpoint
   if (faculty.status !== "approved") {
-    return json(
+    return withCors(request, json(
       { error: "Only approved teachers can submit their profile for review" },
       { status: 400 },
-    );
+    ));
   }
 
   // Check minimum profile completeness
   if (faculty.profileCompleteness < 50) {
-    return json(
+    return withCors(request, json(
       {
         error: "Profile must be at least 50% complete before submitting",
         profileCompleteness: faculty.profileCompleteness,
       },
       { status: 400 },
-    );
+    ));
   }
 
   // Check if there's already a pending profile submission
@@ -54,10 +61,10 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (existingPending) {
-    return json(
+    return withCors(request, json(
       { error: "A profile review is already pending" },
       { status: 400 },
-    );
+    ));
   }
 
   // Bundle all pending profile edits into one submission
@@ -99,9 +106,9 @@ export async function action({ request }: ActionFunctionArgs) {
     teacherEmail: faculty.email,
   });
 
-  return json({
+  return withCors(request, json({
     success: true,
     message: "Profile submitted for review",
     pendingEditCount: pendingEdits.length,
-  });
+  }));
 }

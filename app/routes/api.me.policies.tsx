@@ -4,6 +4,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const POLICY_TYPES = [
   {
@@ -44,6 +45,9 @@ const POLICY_TYPES = [
 ];
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   // Get all consents for this teacher
@@ -79,5 +83,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
     };
   });
 
-  return json({ policies });
+  return withCors(request, json({ policies }));
 }

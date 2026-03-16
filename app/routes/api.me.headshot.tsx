@@ -1,29 +1,36 @@
 // POST /api/me/headshot — upload headshot (V1: accept URL string)
 
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
 import { sendAdminNotification } from "../lib/email.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+}
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
   const body = await request.json();
 
   if (!body.url || typeof body.url !== "string") {
-    return json({ error: "url is required and must be a string" }, { status: 400 });
+    return withCors(request, json({ error: "url is required and must be a string" }, { status: 400 }));
   }
 
   // Validate URL format
   try {
     new URL(body.url);
   } catch {
-    return json({ error: "Invalid URL format" }, { status: 400 });
+    return withCors(request, json({ error: "Invalid URL format" }, { status: 400 }));
   }
 
   // headshotUrl is a gated (public) field, so create a pending edit
@@ -63,9 +70,9 @@ export async function action({ request }: ActionFunctionArgs) {
     teacherEmail: faculty.email,
   });
 
-  return json({
+  return withCors(request, json({
     success: true,
     pendingEdit: { id: pendingEdit.id },
     message: "Headshot submitted for approval",
-  });
+  }));
 }

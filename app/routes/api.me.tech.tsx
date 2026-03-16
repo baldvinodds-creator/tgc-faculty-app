@@ -6,6 +6,7 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const ALLOWED_FIELDS = new Set([
   "zoomLink",
@@ -19,6 +20,9 @@ const ALLOWED_FIELDS = new Set([
 const VALID_WIFI_QUALITY = new Set(["excellent", "good", "fair", "poor"]);
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+
   const auth = await requireTeacherAuth(request);
 
   // Create empty record if not exists
@@ -28,12 +32,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     update: {},
   });
 
-  return json({ tech });
+  return withCors(request, json({ tech }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "PUT") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
@@ -48,15 +52,15 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (Object.keys(data).length === 0) {
-    return json({ error: "No valid fields provided" }, { status: 400 });
+    return withCors(request, json({ error: "No valid fields provided" }, { status: 400 }));
   }
 
   // Validate wifiQuality if provided
   if (data.wifiQuality && !VALID_WIFI_QUALITY.has(data.wifiQuality as string)) {
-    return json(
+    return withCors(request, json(
       { error: `Invalid wifiQuality. Must be one of: ${[...VALID_WIFI_QUALITY].join(", ")}` },
       { status: 400 },
-    );
+    ));
   }
 
   const tech = await prisma.facultyTech.upsert({
@@ -77,5 +81,5 @@ export async function action({ request }: ActionFunctionArgs) {
     details: { fields: Object.keys(data) },
   });
 
-  return json({ success: true, tech });
+  return withCors(request, json({ success: true, tech }));
 }

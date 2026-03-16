@@ -1,10 +1,11 @@
 // POST /api/me/policies/:type/accept — accept a policy
 
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { requireTeacherAuth } from "../lib/auth.server";
 import { logAudit } from "../lib/audit.server";
+import { handleCorsOptions, withCors } from "../lib/cors.server";
 
 const VALID_POLICY_TYPES = new Set([
   "terms_of_service",
@@ -16,25 +17,31 @@ const VALID_POLICY_TYPES = new Set([
   "no_solicitation_agreement",
 ]);
 
+export async function loader({ request }: LoaderFunctionArgs) {
+  const preflight = handleCorsOptions(request);
+  if (preflight) return preflight;
+  return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+}
+
 export async function action({ request, params }: ActionFunctionArgs) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
   const auth = await requireTeacherAuth(request);
   const consentType = params.type!;
 
   if (!VALID_POLICY_TYPES.has(consentType)) {
-    return json(
+    return withCors(request, json(
       { error: `Invalid policy type. Must be one of: ${[...VALID_POLICY_TYPES].join(", ")}` },
       { status: 400 },
-    );
+    ));
   }
 
   const body = await request.json();
 
   if (!body.version) {
-    return json({ error: "version is required" }, { status: 400 });
+    return withCors(request, json({ error: "version is required" }, { status: 400 }));
   }
 
   // Extract IP address from request headers
@@ -62,5 +69,5 @@ export async function action({ request, params }: ActionFunctionArgs) {
     ipAddress: ipAddress || undefined,
   });
 
-  return json({ success: true, consent });
+  return withCors(request, json({ success: true, consent }));
 }
