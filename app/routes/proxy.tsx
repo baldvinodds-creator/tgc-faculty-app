@@ -722,23 +722,46 @@ function buildLogin() {
   card.appendChild(el("p", null, ["Sign in with your email to access your teaching dashboard, manage offerings, and update your profile."]));
 
   var fg = el("div", { className: "tgc-form-group" });
-  var input = el("input", { type: "email", id: "tgc-login-email", placeholder: "you@example.com" });
-  fg.appendChild(input);
+  var emailInput = el("input", { type: "email", id: "tgc-login-email", placeholder: "you@example.com" });
+  fg.appendChild(emailInput);
   card.appendChild(fg);
 
   var msg = el("div", { id: "tgc-login-msg", style: { marginTop: "16px", fontSize: "14px" } });
 
-  var btn = el("button", { className: "tgc-btn tgc-btn-gold", style: { width: "100%" } }, ["Send Magic Link"]);
-  btn.addEventListener("click", function() {
-    var email = input.value.trim();
+  // Code input section (hidden initially)
+  var codeSection = el("div", { id: "tgc-code-section", style: { display: "none", marginTop: "16px" } });
+  var codeLabel = el("p", { style: { fontWeight: "500", marginBottom: "8px" } }, ["Enter the 6-digit code from your email:"]);
+  var codeInput = el("input", {
+    type: "text",
+    id: "tgc-login-code",
+    placeholder: "000000",
+    maxLength: "6",
+    style: {
+      width: "100%",
+      textAlign: "center",
+      fontSize: "24px",
+      letterSpacing: "8px",
+      fontFamily: "monospace",
+      padding: "12px"
+    }
+  });
+  var verifyBtn = el("button", { className: "tgc-btn tgc-btn-gold", style: { width: "100%", marginTop: "12px" } }, ["Verify Code"]);
+  codeSection.appendChild(codeLabel);
+  codeSection.appendChild(codeInput);
+  codeSection.appendChild(verifyBtn);
+
+  var sentEmail = "";
+
+  var sendBtn = el("button", { className: "tgc-btn tgc-btn-gold", style: { width: "100%" } }, ["Send Code"]);
+  sendBtn.addEventListener("click", function() {
+    var email = emailInput.value.trim();
     if (!email || email.indexOf("@") < 0) {
       clearEl(msg);
-      var s = el("span", { style: { color: "var(--tgc-error)" } }, ["Please enter a valid email address."]);
-      msg.appendChild(s);
+      msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, ["Please enter a valid email address."]));
       return;
     }
-    btn.disabled = true;
-    btn.textContent = "Sending...";
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending...";
 
     fetch(API + "/api/auth/request-magic-link", {
       method: "POST",
@@ -749,26 +772,75 @@ function buildLogin() {
     .then(function(data) {
       clearEl(msg);
       if (data.success) {
-        msg.appendChild(el("span", { style: { color: "var(--tgc-success)" } }, ["Check your email for a login link. It expires in 15 minutes."]));
-        btn.textContent = "Link Sent";
+        sentEmail = email;
+        msg.appendChild(el("span", { style: { color: "var(--tgc-success)" } }, ["Code sent! Check your email."]));
+        sendBtn.textContent = "Resend Code";
+        sendBtn.disabled = false;
+        codeSection.style.display = "block";
+        codeInput.focus();
       } else {
         msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, [data.error || "Something went wrong."]));
-        btn.disabled = false;
-        btn.textContent = "Send Magic Link";
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send Code";
       }
     })
     .catch(function() {
       clearEl(msg);
       msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, ["Network error. Please try again."]));
-      btn.disabled = false;
-      btn.textContent = "Send Magic Link";
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send Code";
     });
   });
 
-  input.addEventListener("keydown", function(e) { if (e.key === "Enter") btn.click(); });
+  // Verify code handler
+  verifyBtn.addEventListener("click", function() {
+    var code = codeInput.value.trim();
+    if (!code || code.length !== 6) {
+      clearEl(msg);
+      msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, ["Please enter the 6-digit code from your email."]));
+      return;
+    }
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = "Verifying...";
 
-  card.appendChild(btn);
+    fetch(API + "/api/auth/verify-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: sentEmail, code: code })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.token) {
+        localStorage.setItem("tgc_token", data.token);
+        state.token = data.token;
+        loadProfile();
+      } else {
+        clearEl(msg);
+        msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, [data.error || "Invalid code. Please try again."]));
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = "Verify Code";
+      }
+    })
+    .catch(function() {
+      clearEl(msg);
+      msg.appendChild(el("span", { style: { color: "var(--tgc-error)" } }, ["Network error. Please try again."]));
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = "Verify Code";
+    });
+  });
+
+  // Allow Enter key on inputs
+  emailInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendBtn.click(); });
+  codeInput.addEventListener("keydown", function(e) { if (e.key === "Enter") verifyBtn.click(); });
+
+  // Auto-format: only allow digits in code input
+  codeInput.addEventListener("input", function() {
+    codeInput.value = codeInput.value.replace(/[^0-9]/g, "").slice(0, 6);
+  });
+
+  card.appendChild(sendBtn);
   card.appendChild(msg);
+  card.appendChild(codeSection);
   card.appendChild(el("hr", { className: "tgc-divider" }));
   card.appendChild(el("p", { style: { fontSize: "13px", color: "var(--tgc-text-secondary)" } }, ["New to TGC? Enter your email to begin the application process."]));
 

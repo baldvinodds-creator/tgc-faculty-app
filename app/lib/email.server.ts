@@ -40,25 +40,22 @@ const PORTAL_URL = "https://theglobalconservatory.com/apps/faculty";
 
 // ─── Magic Link ───
 
-export async function sendMagicLinkEmail(email: string, token: string, isNew: boolean) {
-  const verifyUrl = `${APP_URL}/api/auth/verify?token=${token}`;
-
+export async function sendMagicLinkEmail(email: string, token: string, isNew: boolean, code?: string) {
   const subject = isNew
-    ? "Start Your Application — The Global Conservatory"
-    : "Log in to The Global Conservatory Faculty Portal";
+    ? "Your Verification Code — The Global Conservatory"
+    : "Your Login Code — The Global Conservatory";
 
-  const body = isNew
-    ? `
-      <h2>Welcome to The Global Conservatory</h2>
-      <p>Click the link below to start your faculty application:</p>
-      <p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;">Start Application</a></p>
-      <p style="color:#666;font-size:13px;">This link expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
-    `
-    : `
-      <h2>Log In to Your Faculty Portal</h2>
-      <p>Click the link below to access your faculty dashboard:</p>
-      <p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;">Log In</a></p>
-      <p style="color:#666;font-size:13px;">This link expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
+  const heading = isNew
+    ? "Welcome to The Global Conservatory"
+    : "Log In to Your Faculty Portal";
+
+  const body = `
+      <h2>${heading}</h2>
+      <p>Enter this code on the Faculty Portal to ${isNew ? "start your application" : "log in"}:</p>
+      <div style="margin:24px 0;text-align:center;">
+        <span style="display:inline-block;font-size:32px;font-weight:bold;letter-spacing:8px;padding:16px 32px;background:#f5f5f5;border-radius:8px;font-family:monospace;">${escHtml(code || "------")}</span>
+      </div>
+      <p style="color:#666;font-size:13px;">This code expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
     `;
 
   await sendEmail({

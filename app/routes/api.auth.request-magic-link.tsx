@@ -44,9 +44,9 @@ export async function action({ request }: ActionFunctionArgs) {
       });
     }
 
-    // Generate and send magic link
-    const token = await createMagicLinkToken(email);
-    await sendMagicLinkEmail(email, token, isNew);
+    // Generate and send verification code
+    const { token, code } = await createMagicLinkToken(email);
+    await sendMagicLinkEmail(email, token, isNew, code);
 
     return withCors(request, json({
       success: true,

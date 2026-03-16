@@ -17,10 +17,16 @@ export interface JWTPayload {
   status: string;
 }
 
-// ─── Magic Link ───
+// ─── Magic Link / Code ───
 
-export async function createMagicLinkToken(email: string): Promise<string> {
+function generateCode(): string {
+  // Generate a 6-digit numeric code (100000–999999)
+  return String(100000 + crypto.randomInt(900000));
+}
+
+export async function createMagicLinkToken(email: string): Promise<{ token: string; code: string }> {
   const token = crypto.randomBytes(32).toString("hex");
+  const code = generateCode();
   const expiresAt = new Date(
     Date.now() + MAGIC_LINK_EXPIRY_MINUTES * 60 * 1000,
   );
@@ -32,12 +38,48 @@ export async function createMagicLinkToken(email: string): Promise<string> {
     data: {
       email,
       token,
+      code,
       expiresAt,
       facultyId: faculty?.id || null,
     },
   });
 
-  return token;
+  return { token, code };
+}
+
+export async function verifyCode(email: string, code: string): Promise<{
+  email: string;
+  facultyId: string | null;
+  isNew: boolean;
+} | null> {
+  const record = await prisma.magicLinkToken.findFirst({
+    where: {
+      email: email.toLowerCase(),
+      code,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!record) return null;
+
+  // Mark as used
+  await prisma.magicLinkToken.update({
+    where: { id: record.id },
+    data: { usedAt: new Date() },
+  });
+
+  // Check if faculty exists
+  const faculty = await prisma.faculty.findUnique({
+    where: { email: record.email },
+  });
+
+  return {
+    email: record.email,
+    facultyId: faculty?.id || null,
+    isNew: !faculty,
+  };
 }
 
 export async function verifyMagicLinkToken(token: string): Promise<{
