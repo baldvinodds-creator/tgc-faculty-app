@@ -441,7 +441,11 @@ function api(path, opts) {
   return fetch(API + path, Object.assign({ headers: headers }, opts))
     .then(function(r) {
       if (r.status === 401) { logout(); throw new Error("Session expired"); }
-      return r.json();
+      return r.json().catch(function() {
+        // If response isn't valid JSON, return a structured error
+        if (!r.ok) throw new Error("Server error (" + r.status + ")");
+        return {};
+      });
     });
 }
 
@@ -482,6 +486,7 @@ function getHash() {
 }
 
 function statusBadgeHTML(status) {
+  if (!status) status = "unknown";
   var map = {
     active: "green", approved: "green", live: "green", synced: "green",
     pending_review: "yellow", pending_approval: "yellow", pending: "yellow",
@@ -1042,7 +1047,7 @@ function buildDashboard() {
       var tr = el("tr", { style: { cursor: "pointer" } });
       tr.addEventListener("click", function() { navigate("/offerings/" + o.id); });
       tr.appendChild(el("td", null, [o.title || "Untitled"]));
-      tr.appendChild(el("td", null, [o.offeringType.replace(/_/g, " ")]));
+      tr.appendChild(el("td", null, [(o.offeringType || "").replace(/_/g, " ")]));
       var statusTd = el("td");
       statusTd.appendChild(statusBadgeHTML(o.status));
       tr.appendChild(statusTd);
@@ -1209,7 +1214,7 @@ function buildOfferings() {
       var titleTd = el("td");
       titleTd.appendChild(el("a", { href: "#/offerings/" + o.id, style: { color: "var(--tgc-navy)", fontWeight: "600", textDecoration: "none" } }, [o.title || "Untitled"]));
       tr.appendChild(titleTd);
-      tr.appendChild(el("td", null, [o.offeringType.replace(/_/g, " ")]));
+      tr.appendChild(el("td", null, [(o.offeringType || "").replace(/_/g, " ")]));
       tr.appendChild(el("td", null, ["$" + Number(o.price).toFixed(2)]));
       var sTd = el("td"); sTd.appendChild(statusBadgeHTML(o.status)); tr.appendChild(sTd);
       tr.appendChild(el("td", null, [el("a", { href: "#/offerings/" + o.id, className: "tgc-btn tgc-btn-outline tgc-btn-sm" }, ["Edit"])]));
@@ -1226,6 +1231,13 @@ function buildOfferings() {
 // ─── Offering Form ───
 function buildOfferingForm(id) {
   var o = id ? state.offerings.find(function(x) { return x.id === id; }) : null;
+  if (id && !o) {
+    var notFound = el("div", { className: "tgc-card" });
+    notFound.appendChild(el("h2", null, ["Offering Not Found"]));
+    notFound.appendChild(el("p", null, ["This offering could not be found. It may have been deleted."]));
+    notFound.appendChild(el("button", { className: "tgc-btn tgc-btn-outline", onClick: function() { navigate("/offerings"); } }, ["Back to Offerings"]));
+    return notFound;
+  }
   var card = el("div", { className: "tgc-card" });
   card.appendChild(el("h2", null, [o ? "Edit Offering" : "New Offering"]));
 
@@ -1339,7 +1351,8 @@ function buildOfferingForm(id) {
           .then(function(data) {
             if (data.success) { toast("Deleted", "success"); loadOfferings(); navigate("/offerings"); }
             else toast(data.error || "Failed", "error");
-          });
+          })
+          .catch(function(err) { toast(err.message || "Delete failed", "error"); });
       });
       btnRow.appendChild(delBtn);
     }
@@ -1674,7 +1687,7 @@ function loadOfferings() {
       else if (state.view === "offering-new") main.appendChild(buildOfferingForm(null));
       else main.appendChild(buildOfferingForm(state.viewParam));
     }
-  });
+  }).catch(function(err) { toast("Failed to load offerings", "error"); });
 }
 
 function loadAvailability() {
@@ -1685,7 +1698,7 @@ function loadAvailability() {
       clearEl(main);
       main.appendChild(buildAvailability());
     }
-  });
+  }).catch(function(err) { toast("Failed to load availability", "error"); });
 }
 
 function loadMedia() {
@@ -1696,7 +1709,7 @@ function loadMedia() {
       clearEl(main);
       main.appendChild(buildMedia());
     }
-  });
+  }).catch(function(err) { toast("Failed to load media", "error"); });
 }
 
 // ─── Boot ───

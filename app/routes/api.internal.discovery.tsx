@@ -50,9 +50,9 @@ interface CSVTeacher {
 
 // Instrument → Division mapping
 const DIVISION_MAP: Record<string, string> = {
-  voice: "Voice", vocals: "Voice", soprano: "Voice", mezzo: "Voice", tenor: "Voice", baritone: "Voice", bass: "Voice",
+  voice: "Voice", vocals: "Voice", soprano: "Voice", mezzo: "Voice", tenor: "Voice", baritone: "Voice",
   piano: "Piano", keyboard: "Piano",
-  violin: "Strings", viola: "Strings", cello: "Strings", "double bass": "Strings", bass: "Strings", harp: "Strings", guitar: "Strings",
+  bass: "Strings", violin: "Strings", viola: "Strings", cello: "Strings", "double bass": "Strings", harp: "Strings", guitar: "Strings",
   flute: "Winds", oboe: "Winds", clarinet: "Winds", bassoon: "Winds", saxophone: "Winds", recorder: "Winds",
   trumpet: "Brass", "french horn": "Brass", horn: "Brass", trombone: "Brass", tuba: "Brass",
   percussion: "Percussion", drums: "Percussion", timpani: "Percussion", marimba: "Percussion",

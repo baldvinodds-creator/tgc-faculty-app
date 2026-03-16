@@ -19,28 +19,34 @@ export async function action({ request }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const faculty = await prisma.faculty.findUniqueOrThrow({
-    where: { id: auth.facultyId },
-  });
+    const faculty = await prisma.faculty.findUniqueOrThrow({
+      where: { id: auth.facultyId },
+    });
 
-  const teacherName = faculty.publicName || faculty.fullName || "Teacher";
+    const teacherName = faculty.publicName || faculty.fullName || "Teacher";
 
-  await sendAdminNotification("contact" as Parameters<typeof sendAdminNotification>[0], {
-    teacherName,
-    teacherEmail: faculty.email,
-    subject: "Tech Check Request",
-    message: `${teacherName} is requesting a tech check session.`,
-  });
+    await sendAdminNotification("contact" as Parameters<typeof sendAdminNotification>[0], {
+      teacherName,
+      teacherEmail: faculty.email,
+      subject: "Tech Check Request",
+      message: `${teacherName} is requesting a tech check session.`,
+    });
 
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "tech.check_requested",
-    objectType: "faculty",
-    objectId: auth.facultyId,
-  });
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "tech.check_requested",
+      objectType: "faculty",
+      objectId: auth.facultyId,
+    });
 
-  return withCors(request, json({ success: true, message: "Tech check request sent to admin" }));
+    return withCors(request, json({ success: true, message: "Tech check request sent to admin" }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Tech check request error:", error);
+    return withCors(request, json({ error: "Failed to send tech check request" }, { status: 500 }));
+  }
 }

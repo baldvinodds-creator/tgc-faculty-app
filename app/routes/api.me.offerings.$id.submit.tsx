@@ -19,63 +19,69 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
-  const offeringId = params.id!;
+  try {
+    const auth = await requireTeacherAuth(request);
+    const offeringId = params.id!;
 
-  const offering = await prisma.offering.findFirst({
-    where: { id: offeringId, facultyId: auth.facultyId },
-  });
+    const offering = await prisma.offering.findFirst({
+      where: { id: offeringId, facultyId: auth.facultyId },
+    });
 
-  if (!offering) {
-    return withCors(request, json({ error: "Not found" }, { status: 404 }));
-  }
+    if (!offering) {
+      return withCors(request, json({ error: "Not found" }, { status: 404 }));
+    }
 
-  if (offering.status !== "draft" && offering.status !== "rejected") {
-    return withCors(request, json({ error: "Only draft or rejected offerings can be submitted" }, { status: 400 }));
-  }
+    if (offering.status !== "draft" && offering.status !== "rejected") {
+      return withCors(request, json({ error: "Only draft or rejected offerings can be submitted" }, { status: 400 }));
+    }
 
-  // Validate required fields (price can be 0 for free offerings)
-  if (!offering.title) {
-    return withCors(request, json({ error: "Title is required before submitting" }, { status: 400 }));
-  }
-  if (offering.price == null) {
-    return withCors(request, json({ error: "Price is required before submitting" }, { status: 400 }));
-  }
+    // Validate required fields (price can be 0 for free offerings)
+    if (!offering.title) {
+      return withCors(request, json({ error: "Title is required before submitting" }, { status: 400 }));
+    }
+    if (offering.price == null) {
+      return withCors(request, json({ error: "Price is required before submitting" }, { status: 400 }));
+    }
 
-  await prisma.offering.update({
-    where: { id: offeringId },
-    data: {
-      status: "pending_approval",
-      submittedAt: new Date(),
-    },
-  });
+    await prisma.offering.update({
+      where: { id: offeringId },
+      data: {
+        status: "pending_approval",
+        submittedAt: new Date(),
+      },
+    });
 
-  await prisma.approval.create({
-    data: {
+    await prisma.approval.create({
+      data: {
+        objectType: "offering",
+        objectId: offeringId,
+        actionType: "new_offering",
+        status: "pending",
+        submittedBy: auth.facultyId,
+      },
+    });
+
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "offering.submitted",
       objectType: "offering",
       objectId: offeringId,
-      actionType: "new_offering",
-      status: "pending",
-      submittedBy: auth.facultyId,
-    },
-  });
+    });
 
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "offering.submitted",
-    objectType: "offering",
-    objectId: offeringId,
-  });
+    const faculty = await prisma.faculty.findUniqueOrThrow({
+      where: { id: auth.facultyId },
+    });
 
-  const faculty = await prisma.faculty.findUniqueOrThrow({
-    where: { id: auth.facultyId },
-  });
+    await sendAdminNotification("offering", {
+      teacherName: faculty.publicName || faculty.fullName || "Teacher",
+      teacherEmail: faculty.email,
+    });
 
-  await sendAdminNotification("offering", {
-    teacherName: faculty.publicName || faculty.fullName || "Teacher",
-    teacherEmail: faculty.email,
-  });
-
-  return withCors(request, json({ success: true }));
+    return withCors(request, json({ success: true }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Submit offering error:", error);
+    return withCors(request, json({ error: "Failed to submit offering" }, { status: 500 }));
+  }
 }

@@ -53,51 +53,57 @@ export async function action({ request }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
-  const body = await request.json();
+  try {
+    const auth = await requireTeacherAuth(request);
+    const body = await request.json();
 
-  const offering = await prisma.offering.create({
-    data: {
-      facultyId: auth.facultyId,
-      offeringType: body.offeringType || "private_lesson",
-      status: "draft",
-      title: body.title || null,
-      description: body.description || null,
-      topic: body.topic || null,
-      level: body.level || null,
-      ageGroups: body.ageGroups || [],
-      format: body.format || null,
-      durationMinutes: body.durationMinutes || null,
-      price: body.price || 0,
-      currency: body.currency || "USD",
-      capacity: body.capacity || null,
-      prerequisites: body.prerequisites || null,
-      recordingAllowed: body.recordingAllowed || null,
-      replayAllowed: body.replayAllowed || null,
-      materialsRequired: body.materialsRequired || null,
-      oneTime: body.oneTime || false,
-      recurringRule: body.recurringRule || null,
-      proposedStartDate: body.proposedStartDate ? new Date(body.proposedStartDate) : null,
-      proposedEndDate: body.proposedEndDate ? new Date(body.proposedEndDate) : null,
-      proposedSchedule: body.proposedSchedule || null,
-      seriesLength: body.seriesLength || null,
-      termName: body.termName || null,
-      syllabus: body.syllabus || null,
-      applicationRequired: body.applicationRequired || false,
-      performerSeats: body.performerSeats || null,
-      observerSeats: body.observerSeats || null,
-      eventType: body.eventType || null,
-      durationsOffered: body.durationsOffered || null,
-    },
-  });
+    const offering = await prisma.offering.create({
+      data: {
+        facultyId: auth.facultyId,
+        offeringType: body.offeringType || "private_lesson",
+        status: "draft",
+        title: body.title || null,
+        description: body.description || null,
+        topic: body.topic || null,
+        level: body.level || null,
+        ageGroups: body.ageGroups || [],
+        format: body.format || null,
+        durationMinutes: body.durationMinutes || null,
+        price: body.price || 0,
+        currency: body.currency || "USD",
+        capacity: body.capacity || null,
+        prerequisites: body.prerequisites || null,
+        recordingAllowed: body.recordingAllowed || null,
+        replayAllowed: body.replayAllowed || null,
+        materialsRequired: body.materialsRequired || null,
+        oneTime: body.oneTime || false,
+        recurringRule: body.recurringRule || null,
+        proposedStartDate: body.proposedStartDate ? new Date(body.proposedStartDate) : null,
+        proposedEndDate: body.proposedEndDate ? new Date(body.proposedEndDate) : null,
+        proposedSchedule: body.proposedSchedule || null,
+        seriesLength: body.seriesLength || null,
+        termName: body.termName || null,
+        syllabus: body.syllabus || null,
+        applicationRequired: body.applicationRequired || false,
+        performerSeats: body.performerSeats || null,
+        observerSeats: body.observerSeats || null,
+        eventType: body.eventType || null,
+        durationsOffered: body.durationsOffered || null,
+      },
+    });
 
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "offering.created",
-    objectType: "offering",
-    objectId: offering.id,
-  });
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "offering.created",
+      objectType: "offering",
+      objectId: offering.id,
+    });
 
-  return withCors(request, json({ offering }, { status: 201 }));
+    return withCors(request, json({ offering }, { status: 201 }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Create offering error:", error);
+    return withCors(request, json({ error: "Failed to create offering" }, { status: 500 }));
+  }
 }

@@ -40,46 +40,52 @@ export async function action({ request }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
-  const body = await request.json();
+  try {
+    const auth = await requireTeacherAuth(request);
+    const body = await request.json();
 
-  // Filter to only allowed fields
-  const data: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(body)) {
-    if (ALLOWED_FIELDS.has(key)) {
-      data[key] = value;
+    // Filter to only allowed fields
+    const data: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (ALLOWED_FIELDS.has(key)) {
+        data[key] = value;
+      }
     }
+
+    if (Object.keys(data).length === 0) {
+      return withCors(request, json({ error: "No valid fields provided" }, { status: 400 }));
+    }
+
+    // Validate wifiQuality if provided
+    if (data.wifiQuality && !VALID_WIFI_QUALITY.has(data.wifiQuality as string)) {
+      return withCors(request, json(
+        { error: `Invalid wifiQuality. Must be one of: ${[...VALID_WIFI_QUALITY].join(", ")}` },
+        { status: 400 },
+      ));
+    }
+
+    const tech = await prisma.facultyTech.upsert({
+      where: { facultyId: auth.facultyId },
+      create: {
+        facultyId: auth.facultyId,
+        ...data,
+      },
+      update: data,
+    });
+
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "tech.updated",
+      objectType: "tech",
+      objectId: tech.id,
+      details: { fields: Object.keys(data) },
+    });
+
+    return withCors(request, json({ success: true, tech }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Update tech error:", error);
+    return withCors(request, json({ error: "Failed to update tech setup" }, { status: 500 }));
   }
-
-  if (Object.keys(data).length === 0) {
-    return withCors(request, json({ error: "No valid fields provided" }, { status: 400 }));
-  }
-
-  // Validate wifiQuality if provided
-  if (data.wifiQuality && !VALID_WIFI_QUALITY.has(data.wifiQuality as string)) {
-    return withCors(request, json(
-      { error: `Invalid wifiQuality. Must be one of: ${[...VALID_WIFI_QUALITY].join(", ")}` },
-      { status: 400 },
-    ));
-  }
-
-  const tech = await prisma.facultyTech.upsert({
-    where: { facultyId: auth.facultyId },
-    create: {
-      facultyId: auth.facultyId,
-      ...data,
-    },
-    update: data,
-  });
-
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "tech.updated",
-    objectType: "tech",
-    objectId: tech.id,
-    details: { fields: Object.keys(data) },
-  });
-
-  return withCors(request, json({ success: true, tech }));
 }

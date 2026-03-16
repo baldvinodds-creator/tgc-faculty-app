@@ -37,50 +37,56 @@ export async function action({ request }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
-  const body = await request.json();
+  try {
+    const auth = await requireTeacherAuth(request);
+    const body = await request.json();
 
-  // Validate required fields
-  if (!body.url) {
-    return withCors(request, json({ error: "url is required" }, { status: 400 }));
+    // Validate required fields
+    if (!body.url) {
+      return withCors(request, json({ error: "url is required" }, { status: 400 }));
+    }
+
+    const mediaType = body.mediaType || "photo";
+    if (!VALID_MEDIA_TYPES.has(mediaType)) {
+      return withCors(request, json(
+        { error: `Invalid mediaType. Must be one of: ${[...VALID_MEDIA_TYPES].join(", ")}` },
+        { status: 400 },
+      ));
+    }
+
+    const visibility = body.visibility || "private";
+    if (!VALID_VISIBILITY.has(visibility)) {
+      return withCors(request, json(
+        { error: `Invalid visibility. Must be one of: ${[...VALID_VISIBILITY].join(", ")}` },
+        { status: 400 },
+      ));
+    }
+
+    const media = await prisma.facultyMedia.create({
+      data: {
+        facultyId: auth.facultyId,
+        mediaType,
+        url: body.url,
+        label: body.label || null,
+        description: body.description || null,
+        visibility,
+        sortOrder: body.sortOrder ?? null,
+      },
+    });
+
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "media.created",
+      objectType: "media",
+      objectId: media.id,
+      details: { mediaType, visibility },
+    });
+
+    return withCors(request, json({ media }, { status: 201 }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Create media error:", error);
+    return withCors(request, json({ error: "Failed to create media" }, { status: 500 }));
   }
-
-  const mediaType = body.mediaType || "photo";
-  if (!VALID_MEDIA_TYPES.has(mediaType)) {
-    return withCors(request, json(
-      { error: `Invalid mediaType. Must be one of: ${[...VALID_MEDIA_TYPES].join(", ")}` },
-      { status: 400 },
-    ));
-  }
-
-  const visibility = body.visibility || "private";
-  if (!VALID_VISIBILITY.has(visibility)) {
-    return withCors(request, json(
-      { error: `Invalid visibility. Must be one of: ${[...VALID_VISIBILITY].join(", ")}` },
-      { status: 400 },
-    ));
-  }
-
-  const media = await prisma.facultyMedia.create({
-    data: {
-      facultyId: auth.facultyId,
-      mediaType,
-      url: body.url,
-      label: body.label || null,
-      description: body.description || null,
-      visibility,
-      sortOrder: body.sortOrder ?? null,
-    },
-  });
-
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "media.created",
-    objectType: "media",
-    objectId: media.id,
-    details: { mediaType, visibility },
-  });
-
-  return withCors(request, json({ media }, { status: 201 }));
 }

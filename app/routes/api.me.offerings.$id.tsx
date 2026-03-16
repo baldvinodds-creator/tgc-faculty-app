@@ -39,6 +39,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
+  try {
   const auth = await requireTeacherAuth(request);
   const offeringId = params.id!;
 
@@ -164,4 +165,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
   }
 
   return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Offering action error:", error);
+    return withCors(request, json({ error: "Failed to process offering request" }, { status: 500 }));
+  }
 }
