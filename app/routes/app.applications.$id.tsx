@@ -492,7 +492,7 @@ export default function ApplicationDetailPage() {
                     autoComplete="off"
                   />
                   <InlineStack gap="300" blockAlign="center">
-                    <Button onClick={handleAddComment} disabled={isSubmitting || !newComment.trim()}>
+                    <Button onClick={handleAddComment} disabled={isSubmitting || !newComment.trim()} loading={isSubmitting}>
                       Add Note
                     </Button>
                     <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px" }}>

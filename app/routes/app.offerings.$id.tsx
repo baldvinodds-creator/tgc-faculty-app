@@ -593,7 +593,7 @@ export default function OfferingDetailPage() {
                         visibleToTeacher: commentVisible.toString(),
                       }, { method: "POST" });
                       setNewComment("");
-                    }}>Add Comment</Button>
+                    }} loading={fetcher.state === "submitting"} disabled={!newComment.trim() || fetcher.state === "submitting"}>Add Comment</Button>
                     <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px" }}>
                       <input type="checkbox" checked={commentVisible} onChange={(e) => setCommentVisible(e.target.checked)} />
                       Visible to teacher
