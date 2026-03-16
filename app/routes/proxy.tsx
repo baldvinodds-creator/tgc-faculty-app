@@ -13,25 +13,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 function portalHTML(appUrl: string): string {
   return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Faculty Portal — The Global Conservatory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200;0,6..72,400;0,6..72,600;1,6..72,200;1,6..72,400&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>${CSS}</style>
-</head>
-<body>
 <div id="tgc-root"></div>
 <script>
 window.__TGC_APP_URL__ = ${JSON.stringify(appUrl)};
 </script>
 <script>${JS}</script>
-</body>
-</html>
 `;
 }
 
