@@ -18,62 +18,68 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return withCors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
-  const auth = await requireTeacherAuth(request);
-  const offeringId = params.id!;
+  try {
+    const auth = await requireTeacherAuth(request);
+    const offeringId = params.id!;
 
-  const offering = await prisma.offering.findFirst({
-    where: { id: offeringId, facultyId: auth.facultyId },
-  });
-
-  if (!offering) {
-    return withCors(request, json({ error: "Not found" }, { status: 404 }));
-  }
-
-  if (offering.status !== "paused") {
-    return withCors(request, json(
-      { error: "Only paused offerings can be resumed" },
-      { status: 400 },
-    ));
-  }
-
-  // Update local status
-  await prisma.offering.update({
-    where: { id: offeringId },
-    data: { status: "live" },
-  });
-
-  // Create sync record so admin dashboard can push ACTIVE status to Shopify
-  const existingSync = await prisma.syncShopify.findFirst({
-    where: { objectId: offeringId, objectType: "offering_product" },
-  });
-
-  if (existingSync) {
-    await prisma.syncShopify.update({
-      where: { id: existingSync.id },
-      data: {
-        syncStatus: "needs_update",
-        lastError: "Teacher resumed offering — product should be set to ACTIVE",
-      },
+    const offering = await prisma.offering.findFirst({
+      where: { id: offeringId, facultyId: auth.facultyId },
     });
-  } else {
-    await prisma.syncShopify.create({
-      data: {
-        objectType: "offering_product",
-        objectId: offeringId,
-        shopifyObjectType: "product",
-        syncStatus: "needs_update",
-        lastError: "Teacher resumed offering — product should be set to ACTIVE",
-      },
+
+    if (!offering) {
+      return withCors(request, json({ error: "Not found" }, { status: 404 }));
+    }
+
+    if (offering.status !== "paused") {
+      return withCors(request, json(
+        { error: "Only paused offerings can be resumed" },
+        { status: 400 },
+      ));
+    }
+
+    // Update local status
+    await prisma.offering.update({
+      where: { id: offeringId },
+      data: { status: "live" },
     });
+
+    // Create sync record so admin dashboard can push ACTIVE status to Shopify
+    const existingSync = await prisma.syncShopify.findFirst({
+      where: { objectId: offeringId, objectType: "offering_product" },
+    });
+
+    if (existingSync) {
+      await prisma.syncShopify.update({
+        where: { id: existingSync.id },
+        data: {
+          syncStatus: "needs_update",
+          lastError: "Teacher resumed offering — product should be set to ACTIVE",
+        },
+      });
+    } else {
+      await prisma.syncShopify.create({
+        data: {
+          objectType: "offering_product",
+          objectId: offeringId,
+          shopifyObjectType: "product",
+          syncStatus: "needs_update",
+          lastError: "Teacher resumed offering — product should be set to ACTIVE",
+        },
+      });
+    }
+
+    await logAudit({
+      actorType: "teacher",
+      actorId: auth.facultyId,
+      action: "offering.resumed",
+      objectType: "offering",
+      objectId: offeringId,
+    });
+
+    return withCors(request, json({ success: true }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Resume offering error:", error);
+    return withCors(request, json({ error: "Failed to resume offering" }, { status: 500 }));
   }
-
-  await logAudit({
-    actorType: "teacher",
-    actorId: auth.facultyId,
-    action: "offering.resumed",
-    objectType: "offering",
-    objectId: offeringId,
-  });
-
-  return withCors(request, json({ success: true }));
 }
