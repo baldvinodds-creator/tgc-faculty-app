@@ -260,6 +260,153 @@ function formatFieldName(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Organized display sections for the 60-question application form
+const APPLICATION_SECTIONS = [
+  {
+    title: "Section 1: Identity",
+    fields: ["fullName", "publicName", "phone", "country", "timezone", "preferredContactMethod"],
+  },
+  {
+    title: "Section 2: Teaching Profile",
+    fields: ["primaryInstrument", "genres", "teachingLanguages", "studentAgeRange"],
+  },
+  {
+    title: "Section 3: Credentials",
+    fields: ["yearsExperience", "highestQualification", "currentRoles", "awards", "cvLinks"],
+  },
+  {
+    title: "Section 4: Bio & Media",
+    fields: ["shortBio", "headshotUrl", "portfolioUrl", "zoomLink", "socialInstagram", "socialYoutube", "websiteUrl"],
+  },
+  {
+    title: "Section 5: What They Offer",
+    fields: ["classTypes", "levels", "durations", "weeklySlots", "teachingStyle"],
+  },
+  {
+    title: "Section 5.1: Masterclass Details",
+    fields: ["masterclassTopics", "masterclassLength", "masterclassPerformerSeats", "masterclassObserverCapacity", "masterclassRecordingOk"],
+  },
+  {
+    title: "Section 5.2: Studio Class Details",
+    fields: ["studioClassTerm", "studioClassHours", "studioClassCohortSize", "studioClassSyllabus"],
+  },
+  {
+    title: "Section 5.3: Group Lesson Details",
+    fields: ["groupLessonTopics", "groupLessonFormat", "groupLessonSize"],
+  },
+  {
+    title: "Section 6: Pricing",
+    fields: ["baseRate"],
+  },
+  {
+    title: "Section 7: Availability",
+    fields: ["availability"],
+  },
+  {
+    title: "Section 8: Technical Setup",
+    fields: ["zoomFamiliarity", "wifiReliable", "microphoneType", "dedicatedCamera", "techSetupDescription", "backupPlan", "usesAiTools", "aiToolsExplanation"],
+  },
+  {
+    title: "Section 9: Policies & Consent",
+    fields: ["consents"],
+  },
+  {
+    title: "Section 10: Final Disclosures",
+    fields: ["referral", "inviteEmails", "legalIssues", "legalExplanation"],
+  },
+];
+
+function formatValue(key: string, value: any): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (Array.isArray(value)) return value.join(", ") || "-";
+  if (key === "baseRate") return "$" + Number(value).toFixed(2) + " / 60 min";
+  if (key === "availability" && typeof value === "object") {
+    return Object.entries(value)
+      .map(([day, slots]) => `${day}: ${(slots as string[]).join(", ")}`)
+      .join("\n") || "-";
+  }
+  if (key === "consents" && typeof value === "object") {
+    const entries = Object.entries(value);
+    const agreed = entries.filter(([, v]) => v === true).length;
+    return `${agreed} of ${entries.length} policies agreed`;
+  }
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function ApplicationDataSections({ appData }: { appData: Record<string, any> }) {
+  // Track which fields we've displayed
+  const displayedFields = new Set<string>();
+
+  const sections = APPLICATION_SECTIONS.map((section) => {
+    const fieldEntries = section.fields
+      .filter((f) => appData[f] !== undefined && appData[f] !== null && appData[f] !== "")
+      .map((f) => {
+        displayedFields.add(f);
+        return { key: f, value: appData[f] };
+      });
+    if (fieldEntries.length === 0) return null;
+    return { ...section, fieldEntries };
+  }).filter(Boolean);
+
+  // Catch any fields not in our section mapping
+  const unmappedFields = Object.entries(appData)
+    .filter(([key]) => !displayedFields.has(key) && !["specialties", "division"].includes(key))
+    .filter(([, value]) => value !== null && value !== undefined && value !== "");
+
+  return (
+    <BlockStack gap="500">
+      {sections.map((section: any) => (
+        <Box key={section.title}>
+          <BlockStack gap="300">
+            <Text as="h3" variant="headingSm" fontWeight="semibold">
+              {section.title}
+            </Text>
+            {section.fieldEntries.map((entry: any) => (
+              <InlineStack key={entry.key} gap="400" wrap={false}>
+                <Box minWidth="200px">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {formatFieldName(entry.key)}
+                  </Text>
+                </Box>
+                <Text as="span" variant="bodySm">
+                  <span style={{ whiteSpace: "pre-wrap" }}>
+                    {formatValue(entry.key, entry.value)}
+                  </span>
+                </Text>
+              </InlineStack>
+            ))}
+          </BlockStack>
+          <Box paddingBlockStart="400">
+            <Divider />
+          </Box>
+        </Box>
+      ))}
+      {unmappedFields.length > 0 && (
+        <Box>
+          <BlockStack gap="300">
+            <Text as="h3" variant="headingSm" fontWeight="semibold">
+              Other Fields
+            </Text>
+            {unmappedFields.map(([key, value]) => (
+              <InlineStack key={key} gap="400" wrap={false}>
+                <Box minWidth="200px">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {formatFieldName(key)}
+                  </Text>
+                </Box>
+                <Text as="span" variant="bodySm">
+                  {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value || "-")}
+                </Text>
+              </InlineStack>
+            ))}
+          </BlockStack>
+        </Box>
+      )}
+    </BlockStack>
+  );
+}
+
 export default function ApplicationDetailPage() {
   const { application, error } = useLoaderData<typeof loader>() as any;
   const fetcher = useFetcher();
@@ -398,22 +545,7 @@ export default function ApplicationDetailPage() {
                     No application data submitted.
                   </Text>
                 ) : (
-                  <BlockStack gap="300">
-                    {Object.entries(appData).map(([key, value]) => (
-                      <InlineStack key={key} gap="400" wrap={false}>
-                        <Box minWidth="180px">
-                          <Text as="span" variant="bodySm" fontWeight="semibold">
-                            {formatFieldName(key)}
-                          </Text>
-                        </Box>
-                        <Text as="span" variant="bodySm">
-                          {typeof value === "object"
-                            ? JSON.stringify(value, null, 2)
-                            : String(value || "-")}
-                        </Text>
-                      </InlineStack>
-                    ))}
-                  </BlockStack>
+                  <ApplicationDataSections appData={appData} />
                 )}
               </BlockStack>
             </Card>
