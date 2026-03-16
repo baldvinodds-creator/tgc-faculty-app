@@ -22,14 +22,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const media = await prisma.facultyMedia.findMany({
-    where: { facultyId: auth.facultyId },
-    orderBy: { sortOrder: "asc" },
-  });
+    const media = await prisma.facultyMedia.findMany({
+      where: { facultyId: auth.facultyId },
+      orderBy: { sortOrder: "asc" },
+    });
 
-  return withCors(request, json({ media }));
+    return withCors(request, json({ media }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load media error:", error);
+    return withCors(request, json({ error: "Failed to load media" }, { status: 500 }));
+  }
 }
 
 export async function action({ request }: ActionFunctionArgs) {

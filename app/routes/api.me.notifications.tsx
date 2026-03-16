@@ -10,51 +10,57 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  // Gather all object IDs belonging to this teacher
-  const offerings = await prisma.offering.findMany({
-    where: { facultyId: auth.facultyId },
-    select: { id: true },
-  });
-  const offeringIds = offerings.map((o) => o.id);
+    // Gather all object IDs belonging to this teacher
+    const offerings = await prisma.offering.findMany({
+      where: { facultyId: auth.facultyId },
+      select: { id: true },
+    });
+    const offeringIds = offerings.map((o) => o.id);
 
-  const profileEdits = await prisma.profileEdit.findMany({
-    where: { facultyId: auth.facultyId },
-    select: { id: true },
-  });
-  const profileEditIds = profileEdits.map((e) => e.id);
+    const profileEdits = await prisma.profileEdit.findMany({
+      where: { facultyId: auth.facultyId },
+      select: { id: true },
+    });
+    const profileEditIds = profileEdits.map((e) => e.id);
 
-  const offeringEdits = await prisma.offeringEdit.findMany({
-    where: { facultyId: auth.facultyId },
-    select: { id: true },
-  });
-  const offeringEditIds = offeringEdits.map((e) => e.id);
+    const offeringEdits = await prisma.offeringEdit.findMany({
+      where: { facultyId: auth.facultyId },
+      select: { id: true },
+    });
+    const offeringEditIds = offeringEdits.map((e) => e.id);
 
-  const allObjectIds = [
-    auth.facultyId,
-    ...offeringIds,
-    ...profileEditIds,
-    ...offeringEditIds,
-  ];
+    const allObjectIds = [
+      auth.facultyId,
+      ...offeringIds,
+      ...profileEditIds,
+      ...offeringEditIds,
+    ];
 
-  // Fetch admin comments visible to this teacher
-  const comments = await prisma.adminComment.findMany({
-    where: {
-      objectId: { in: allObjectIds },
-      visibleToTeacher: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+    // Fetch admin comments visible to this teacher
+    const comments = await prisma.adminComment.findMany({
+      where: {
+        objectId: { in: allObjectIds },
+        visibleToTeacher: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-  // Fetch pending approval statuses for this teacher's items
-  const pendingApprovals = await prisma.approval.findMany({
-    where: {
-      objectId: { in: allObjectIds },
-      status: "pending",
-    },
-    orderBy: { createdAt: "desc" },
-  });
+    // Fetch pending approval statuses for this teacher's items
+    const pendingApprovals = await prisma.approval.findMany({
+      where: {
+        objectId: { in: allObjectIds },
+        status: "pending",
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-  return withCors(request, json({ comments, pendingApprovals }));
+    return withCors(request, json({ comments, pendingApprovals }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load notifications error:", error);
+    return withCors(request, json({ error: "Failed to load notifications" }, { status: 500 }));
+  }
 }

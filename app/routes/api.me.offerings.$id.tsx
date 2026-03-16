@@ -15,27 +15,33 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const offeringBase = await prisma.offering.findFirst({
-    where: { id: params.id!, facultyId: auth.facultyId },
-    include: {
-      edits: { orderBy: { submittedAt: "desc" } },
-    },
-  });
+    const offeringBase = await prisma.offering.findFirst({
+      where: { id: params.id!, facultyId: auth.facultyId },
+      include: {
+        edits: { orderBy: { submittedAt: "desc" } },
+      },
+    });
 
-  if (!offeringBase) {
-    return withCors(request, json({ error: "Not found" }, { status: 404 }));
+    if (!offeringBase) {
+      return withCors(request, json({ error: "Not found" }, { status: 404 }));
+    }
+
+    const adminComments = await prisma.adminComment.findMany({
+      where: { objectType: "offering", objectId: offeringBase.id, visibleToTeacher: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const offering = { ...offeringBase, adminComments };
+
+    return withCors(request, json({ offering }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load offering detail error:", error);
+    return withCors(request, json({ error: "Failed to load offering" }, { status: 500 }));
   }
-
-  const adminComments = await prisma.adminComment.findMany({
-    where: { objectType: "offering", objectId: offeringBase.id, visibleToTeacher: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const offering = { ...offeringBase, adminComments };
-
-  return withCors(request, json({ offering }));
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {

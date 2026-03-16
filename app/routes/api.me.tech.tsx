@@ -23,16 +23,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  // Create empty record if not exists
-  const tech = await prisma.facultyTech.upsert({
-    where: { facultyId: auth.facultyId },
-    create: { facultyId: auth.facultyId },
-    update: {},
-  });
+    // Create empty record if not exists
+    const tech = await prisma.facultyTech.upsert({
+      where: { facultyId: auth.facultyId },
+      create: { facultyId: auth.facultyId },
+      update: {},
+    });
 
-  return withCors(request, json({ tech }));
+    return withCors(request, json({ tech }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load tech error:", error);
+    return withCors(request, json({ error: "Failed to load tech setup" }, { status: 500 }));
+  }
 }
 
 export async function action({ request }: ActionFunctionArgs) {

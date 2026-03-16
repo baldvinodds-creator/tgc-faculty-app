@@ -26,13 +26,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const availability = await prisma.availabilityPreferences.findUnique({
-    where: { facultyId: auth.facultyId },
-  });
+    const availability = await prisma.availabilityPreferences.findUnique({
+      where: { facultyId: auth.facultyId },
+    });
 
-  return withCors(request, json({ availability: availability || null }));
+    return withCors(request, json({ availability: availability || null }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load availability error:", error);
+    return withCors(request, json({ error: "Failed to load availability" }, { status: 500 }));
+  }
 }
 
 export async function action({ request }: ActionFunctionArgs) {

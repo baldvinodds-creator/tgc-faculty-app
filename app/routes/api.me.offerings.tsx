@@ -13,39 +13,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  const offeringsBase = await prisma.offering.findMany({
-    where: { facultyId: auth.facultyId },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      edits: { where: { status: "pending_approval" } },
-    },
-  });
+    const offeringsBase = await prisma.offering.findMany({
+      where: { facultyId: auth.facultyId },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        edits: { where: { status: "pending_approval" } },
+      },
+    });
 
-  // Attach admin comments visible to teacher for each offering
-  const offeringIds = offeringsBase.map((o) => o.id);
-  const comments = offeringIds.length > 0
-    ? await prisma.adminComment.findMany({
-        where: { objectType: "offering", objectId: { in: offeringIds }, visibleToTeacher: true },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+    // Attach admin comments visible to teacher for each offering
+    const offeringIds = offeringsBase.map((o) => o.id);
+    const comments = offeringIds.length > 0
+      ? await prisma.adminComment.findMany({
+          where: { objectType: "offering", objectId: { in: offeringIds }, visibleToTeacher: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
 
-  const commentMap = new Map<string, typeof comments>();
-  for (const c of comments) {
-    if (!commentMap.has(c.objectId)) {
-      commentMap.set(c.objectId, []);
+    const commentMap = new Map<string, typeof comments>();
+    for (const c of comments) {
+      if (!commentMap.has(c.objectId)) {
+        commentMap.set(c.objectId, []);
+      }
+      commentMap.get(c.objectId)!.push(c);
     }
-    commentMap.get(c.objectId)!.push(c);
+
+    const offerings = offeringsBase.map((o) => ({
+      ...o,
+      adminComments: commentMap.get(o.id) || [],
+    }));
+
+    return withCors(request, json({ offerings }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load offerings error:", error);
+    return withCors(request, json({ error: "Failed to load offerings" }, { status: 500 }));
   }
-
-  const offerings = offeringsBase.map((o) => ({
-    ...o,
-    adminComments: commentMap.get(o.id) || [],
-  }));
-
-  return withCors(request, json({ offerings }));
 }
 
 export async function action({ request }: ActionFunctionArgs) {

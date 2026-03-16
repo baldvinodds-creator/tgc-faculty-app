@@ -48,40 +48,46 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const preflight = handleCorsOptions(request);
   if (preflight) return preflight;
 
-  const auth = await requireTeacherAuth(request);
+  try {
+    const auth = await requireTeacherAuth(request);
 
-  // Get all consents for this teacher
-  const consents = await prisma.consent.findMany({
-    where: { facultyId: auth.facultyId },
-    orderBy: { acceptedAt: "desc" },
-  });
+    // Get all consents for this teacher
+    const consents = await prisma.consent.findMany({
+      where: { facultyId: auth.facultyId },
+      orderBy: { acceptedAt: "desc" },
+    });
 
-  // Build a map of latest consent per type
-  const latestConsents = new Map<
-    string,
-    { version: string; acceptedAt: Date }
-  >();
-  for (const consent of consents) {
-    if (!latestConsents.has(consent.consentType)) {
-      latestConsents.set(consent.consentType, {
-        version: consent.version,
-        acceptedAt: consent.acceptedAt,
-      });
+    // Build a map of latest consent per type
+    const latestConsents = new Map<
+      string,
+      { version: string; acceptedAt: Date }
+    >();
+    for (const consent of consents) {
+      if (!latestConsents.has(consent.consentType)) {
+        latestConsents.set(consent.consentType, {
+          version: consent.version,
+          acceptedAt: consent.acceptedAt,
+        });
+      }
     }
+
+    // Build response with status for each policy type
+    const policies = POLICY_TYPES.map((policy) => {
+      const latest = latestConsents.get(policy.type);
+      return {
+        type: policy.type,
+        label: policy.label,
+        currentVersion: policy.currentVersion,
+        acceptedVersion: latest?.version || null,
+        acceptedAt: latest?.acceptedAt || null,
+        needsAcceptance: !latest || latest.version !== policy.currentVersion,
+      };
+    });
+
+    return withCors(request, json({ policies }));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Load policies error:", error);
+    return withCors(request, json({ error: "Failed to load policies" }, { status: 500 }));
   }
-
-  // Build response with status for each policy type
-  const policies = POLICY_TYPES.map((policy) => {
-    const latest = latestConsents.get(policy.type);
-    return {
-      type: policy.type,
-      label: policy.label,
-      currentVersion: policy.currentVersion,
-      acceptedVersion: latest?.version || null,
-      acceptedAt: latest?.acceptedAt || null,
-      needsAcceptance: !latest || latest.version !== policy.currentVersion,
-    };
-  });
-
-  return withCors(request, json({ policies }));
 }
