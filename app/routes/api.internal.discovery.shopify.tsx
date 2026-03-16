@@ -106,6 +106,7 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
+  try {
   const { admin } = await authenticate.admin(request);
 
   const body = await request.json().catch(() => ({}));
@@ -345,4 +346,9 @@ export async function action({ request }: ActionFunctionArgs) {
       status: p.status,
     })),
   });
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Discovery Shopify scan error:", error);
+    return json({ error: "Failed to scan Shopify store" }, { status: 500 });
+  }
 }

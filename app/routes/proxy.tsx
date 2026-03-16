@@ -572,6 +572,14 @@ function loadProfile() {
   state.loading = true;
   render();
   api("/api/me").then(function(data) {
+    if (!data.faculty) {
+      state.loading = false;
+      state.token = null;
+      localStorage.removeItem("tgc_jwt");
+      state.view = "login";
+      render();
+      return;
+    }
     state.faculty = data.faculty;
     state.loading = false;
     routeByStatus();
@@ -999,7 +1007,7 @@ function buildDashboard() {
     s.appendChild(el("div", { className: "tgc-stat-label" }, [label]));
     statRow.appendChild(s);
   }
-  addStat(f.profileCompleteness + "%", "Profile Complete");
+  addStat((f.profileCompleteness || 0) + "%", "Profile Complete");
   addStat(offeringsCount, "Offerings");
   addStat(liveCount, "Live");
   addStat(f.acceptingStudents ? "Yes" : "No", "Accepting Students");
@@ -1009,9 +1017,9 @@ function buildDashboard() {
   var pCard = el("div", { className: "tgc-card" });
   pCard.appendChild(el("h3", null, ["Profile Completeness"]));
   var bar = el("div", { className: "tgc-progress-bar" });
-  bar.appendChild(el("div", { className: "tgc-progress-fill", style: { width: f.profileCompleteness + "%" } }));
+  bar.appendChild(el("div", { className: "tgc-progress-fill", style: { width: (f.profileCompleteness || 0) + "%" } }));
   pCard.appendChild(bar);
-  pCard.appendChild(el("p", { style: { fontSize: "13px", color: "var(--tgc-text-secondary)" } }, [f.profileCompleteness < 100 ? "Complete your profile to improve visibility in the faculty directory." : "Your profile is complete."]));
+  pCard.appendChild(el("p", { style: { fontSize: "13px", color: "var(--tgc-text-secondary)" } }, [(f.profileCompleteness || 0) < 100 ? "Complete your profile to improve visibility in the faculty directory." : "Your profile is complete."]));
   var pBtnRow = el("div", { className: "tgc-btn-row" });
   pBtnRow.appendChild(el("a", { href: "#/profile", className: "tgc-btn tgc-btn-outline tgc-btn-sm" }, ["Edit Profile"]));
   pCard.appendChild(pBtnRow);
@@ -1167,7 +1175,7 @@ function buildProfile() {
         if (data.success) {
           var msgs = [];
           if (data.freeFieldsUpdated && data.freeFieldsUpdated.length) msgs.push(data.freeFieldsUpdated.length + " field(s) updated");
-          if (data.pendingEdit) msgs.push(data.pendingEdit.fields.length + " field(s) sent for review");
+          if (data.pendingEdit && data.pendingEdit.fields) msgs.push(data.pendingEdit.fields.length + " field(s) sent for review");
           toast(msgs.join(". ") || "Saved", "success");
           loadProfile();
         } else { toast(data.error || "Failed to save", "error"); }
@@ -1575,7 +1583,7 @@ function buildMedia() {
     state.media.forEach(function(m) {
       var tr = el("tr");
       var labelTd = el("td");
-      labelTd.appendChild(el("a", { href: m.url, target: "_blank", style: { color: "var(--tgc-navy)" } }, [m.label || m.url.substring(0, 40)]));
+      labelTd.appendChild(el("a", { href: m.url || "#", target: "_blank", style: { color: "var(--tgc-navy)" } }, [m.label || (m.url ? m.url.substring(0, 40) : "Untitled")]));
       tr.appendChild(labelTd);
       tr.appendChild(el("td", null, [m.mediaType]));
       var visTd = el("td"); visTd.appendChild(statusBadgeHTML(m.visibility)); tr.appendChild(visTd);
@@ -1587,7 +1595,8 @@ function buildMedia() {
           .then(function(data) {
             if (data.success) { toast("Deleted", "success"); loadMedia(); }
             else toast(data.error || "Failed", "error");
-          });
+          })
+          .catch(function(err) { toast("Error: " + err.message, "error"); });
       });
       actTd.appendChild(delBtn);
       tr.appendChild(actTd);
