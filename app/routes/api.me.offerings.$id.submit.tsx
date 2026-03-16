@@ -31,8 +31,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
       return withCors(request, json({ error: "Not found" }, { status: 404 }));
     }
 
-    if (offering.status !== "draft" && offering.status !== "rejected") {
-      return withCors(request, json({ error: "Only draft or rejected offerings can be submitted" }, { status: 400 }));
+    if (offering.status !== "draft" && offering.status !== "rejected" && offering.status !== "changes_requested") {
+      return withCors(request, json({ error: "Only draft, rejected, or changes-requested offerings can be submitted" }, { status: 400 }));
     }
 
     // Validate required fields (price can be 0 for free offerings)

@@ -155,7 +155,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       await prisma.$transaction([
         prisma.offering.update({
           where: { id },
-          data: { status: "draft" },
+          data: { status: "changes_requested" },
+        }),
+        prisma.adminComment.create({
+          data: {
+            objectType: "offering",
+            objectId: id,
+            authorId: session.id,
+            comment: notes.trim(),
+            visibleToTeacher: true,
+          },
         }),
         prisma.auditLog.create({
           data: {
@@ -168,7 +177,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           },
         }),
       ]);
-      return json({ success: true, message: "Changes requested" });
+      return json({ success: true, message: "Changes requested — teacher notified" });
     }
 
     if (intent === "publish") {
@@ -323,6 +332,7 @@ function offeringStatusBadge(status: string) {
     suspended: "critical",
     archived: undefined,
     rejected: "critical",
+    changes_requested: "warning",
   };
   return (
     <Badge tone={toneMap[status]}>

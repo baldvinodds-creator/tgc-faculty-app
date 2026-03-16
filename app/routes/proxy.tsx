@@ -1782,7 +1782,7 @@ function buildOfferingForm(id) {
     });
     btnRow.appendChild(saveBtn);
 
-    if (o.status === "draft" || o.status === "rejected") {
+    if (o.status === "draft" || o.status === "rejected" || o.status === "changes_requested") {
       var subBtn = el("button", { className: "tgc-btn tgc-btn-primary" }, ["Submit for Review"]);
       subBtn.addEventListener("click", function() {
         subBtn.disabled = true;
