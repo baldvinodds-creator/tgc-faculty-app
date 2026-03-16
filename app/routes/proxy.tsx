@@ -750,9 +750,15 @@ function buildLogin() {
   codeSection.appendChild(codeInput);
   codeSection.appendChild(verifyBtn);
 
-  var sentEmail = "";
+  var sentEmail = sessionStorage.getItem("tgc_pending_email") || "";
 
-  var sendBtn = el("button", { className: "tgc-btn tgc-btn-gold", style: { width: "100%" } }, ["Send Code"]);
+  // Restore code section if user already requested a code (survives page refresh)
+  if (sentEmail) {
+    emailInput.value = sentEmail;
+    codeSection.style.display = "block";
+  }
+
+  var sendBtn = el("button", { className: "tgc-btn tgc-btn-gold", style: { width: "100%" } }, [sentEmail ? "Resend Code" : "Send Code"]);
   sendBtn.addEventListener("click", function() {
     var email = emailInput.value.trim();
     if (!email || email.indexOf("@") < 0) {
@@ -773,6 +779,7 @@ function buildLogin() {
       clearEl(msg);
       if (data.success) {
         sentEmail = email;
+        sessionStorage.setItem("tgc_pending_email", email);
         msg.appendChild(el("span", { style: { color: "var(--tgc-success)" } }, ["Code sent! Check your email."]));
         sendBtn.textContent = "Resend Code";
         sendBtn.disabled = false;
@@ -811,7 +818,8 @@ function buildLogin() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success && data.token) {
-        localStorage.setItem("tgc_token", data.token);
+        sessionStorage.removeItem("tgc_pending_email");
+        localStorage.setItem("tgc_jwt", data.token);
         state.token = data.token;
         loadProfile();
       } else {
